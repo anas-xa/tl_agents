@@ -146,7 +146,7 @@ export default function Tile({ k, n, dataAsOf, onRetry, retrying }: { k: KpiReco
             </dl>
           )}
           {Object.entries(k.breakdowns || {}).map(([id, table]) => (
-            <SupTableView key={id} table={table} n={n} ctx={id} countLabel={['enrolment_split', 'subscription_status_counts', 'by_enrolment_mode', 'by_enrolment_basis', 'by_renewal_choice_marker', 'bands', 'by_result', 'coverage', 'not_measurable_reasons', 'by_deadline_source'].includes(id) ? 'licences' : 'count'} caption={t(`tbl.${id}`, { defaultValue: id })} />
+            <SupTableView key={id} table={table} n={n} ctx={id} countLabel={['enrolment_split', 'subscription_status_counts', 'by_enrolment_mode', 'by_enrolment_basis', 'by_renewal_choice_marker', 'bands', 'by_result'].includes(id) ? 'licences' : 'count'} caption={t(`tbl.${id}`, { defaultValue: id })} />
           ))}
         </details>
       )}
