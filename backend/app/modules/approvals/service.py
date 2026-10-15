@@ -433,7 +433,7 @@ def _return_to_owner(db: Session, g: DelegateApprovalGrant, reason: str) -> None
 # --- requests ----------------------------------------------------------------------------------
 
 
-def _new_request(db: Session, pack: DraftPack, *, requested_by: Any | None, role: str, reason: str | None = None, is_demo: bool = False) -> ApprovalRequest:
+def _new_request(db: Session, pack: DraftPack, *, requested_by: Any | None, role: str, reason: str | None = None, is_demo: bool = False, route: bool = True) -> ApprovalRequest:
     due, src, start, end = pack_due_date(db, pack)
     rule, n = authority_rule(db, pack.company_id)
     now = utcnow()
@@ -457,7 +457,7 @@ def _new_request(db: Session, pack: DraftPack, *, requested_by: Any | None, role
         record_event(db, event_type="NOTIFICATION_SENT", category="reminder", company_id=pack.company_id, subject_type="approval_request", subject_id=req.id, details={"to": e["kind"], "kind": "approval_requested", "languages": ["ar", "en"]})
     if rule == "unclear":
         _set_request(db, req, "blocked", "AUTHORITY_UNCLEAR")
-        req.escalation_case_id = _route_to_reviewer(db, req)
+        req.escalation_case_id = _route_to_reviewer(db, req) if route else None
     return req
 
 
@@ -774,9 +774,11 @@ def request_dict(db: Session, req: ApprovalRequest, *, principal: Any | None = N
     pack = db.get(DraftPack, req.pack_id)
     approvals = list(db.scalars(select(Approval).where(Approval.request_id == req.id).order_by(Approval.decided_at)))
     cur = next((a for a in reversed(approvals) if a.decision == "approve" and a.status != "pending_joint"), None)
+    fil = filing_status(db, req)
     valid = False
     if cur is not None:
-        valid, _ = approval_state(db, cur)
+        # once filing evidence is recorded the approval stands as it was at the gate (judged at that time)
+        valid = True if fil["state"] != "not_filed" else approval_state(db, cur)[0]
     company = db.get(Company, req.company_id)
     out = {
         "request_id": req.id, "company_id": req.company_id, "company_name": {"en": company.trade_name_en, "ar": company.trade_name_ar} if company else None, "pack_id": req.pack_id,
@@ -791,7 +793,7 @@ def request_dict(db: Session, req: ApprovalRequest, *, principal: Any | None = N
         "approval_valid": valid, "approved_by": approval_dict(cur) if cur else None,
         "joint_collected": len({a.approver_uuid for a in approvals if a.status == "pending_joint"}),
         "history": [approval_dict(a) for a in approvals],
-        "filing": filing_status(db, req),
+        "filing": fil,
     }
     if principal is not None:
         out["entitlement"] = can_approve(db, principal, req, pack)
