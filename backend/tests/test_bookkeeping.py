@@ -306,3 +306,20 @@ def test_remote_owner_summary_and_reference_pickers(client):
     assert {"SR", "ZR", "EX", "OS", "RC"} <= set(codes) and codes["SR"]["gloss_ar"] and codes["SR"]["status_label"] == "configured, pending FTA confirmation"
     assert any(a["code"] == "4000" for a in ref["accounts"])
 
+
+
+def test_intake_from_datalinks_statement_lines_ready_uploads_only(db):
+    from app.modules.datalinks.models import StatementLine, StatementUpload
+
+    for uid, status in (("upl_ready", "ready"), ("upl_q", "quarantined")):
+        db.add(StatementUpload(upload_id=uid, company_id=CO_ALNOOR, file_name=f"{uid}.csv", file_type="csv", file_sha256=uid, uploader_identity_uuid=PERSONA_UUIDS["khalid"], status=status, authorisation_consent_id="cons_x"))
+    db.flush()
+    db.add(StatementLine(company_id=CO_ALNOOR, upload_id="upl_ready", line_no=1, txn_date=date(2026, 9, 28), description="DEWA bill late September", amount_fils=-10_000, dedupe_key="dk1", language_class="none"))
+    db.add(StatementLine(company_id=CO_ALNOOR, upload_id="upl_q", line_no=1, txn_date=date(2026, 9, 28), description="Quarantined line", amount_fils=-5, dedupe_key="dk2"))
+    db.flush()
+    out = svc.ingest_from_statement_lines(db, CO_ALNOOR)
+    assert out["source"] == "statement_lines" and out["ingested"] >= 1  # datalinks demo lines are ingested too
+    assert db.scalar(select(Transaction).where(Transaction.description == "Quarantined line")) is None
+    t = db.scalar(select(Transaction).where(Transaction.source_id == "dk1:0"))
+    assert t.manual_unverified is True and t.consent_id == "cons_x" and t.description_language == "en"
+    assert svc.ingest_from_statement_lines(db, CO_ALNOOR)["ingested"] == 0  # idempotent

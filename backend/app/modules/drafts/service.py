@@ -136,6 +136,10 @@ def _history(db: Session, pack: DraftPack, to_status: str, *, actor: Any | None,
 def create_pack(db: Session, company_id: str, tax_type: str, period_id: str, *, actor: Any | None = None, run_calculation: bool = True, what_changed: str | None = None, is_demo: bool = False) -> DraftPack:
     """Assemble a versioned draft once the completeness check passes. Earlier versions become Superseded (system)."""
     actor_key = getattr(actor, "actor_key", None)
+    if tax_type == "ct" and tax.get_profile(db, company_id).ct_status != "standalone_mainland":
+        calc = tax.calculate_ct(db, company_id, period_id, actor=actor)  # blocked + escalated (Q96), reported first
+        record_event(db, event_type="DRAFT_GENERATION_FAILED", category="agent", outcome="failed", reason_code="BLOCKED", actor_key=actor_key, company_id=company_id, subject_type="period", subject_id=period_id, details={"calculation_id": calc.id})
+        raise ValidationFailed(f"Draft could not be prepared. Cause: {calc.state_reason}. Next step: a specialist will contact you.", reason_code="GENERATION_FAILED", details={"cause": calc.state_reason, "next_step": "a specialist will contact you", "state": calc.state})
     facts = tax.completeness_facts(db, company_id, tax_type)
     prev_calc = tax.latest(db, company_id, tax_type, period_id)
     if tax_type == "ct" and prev_calc and prev_calc.outputs and prev_calc.outputs.get("accounting_profit_source") == "company-entered":

@@ -84,6 +84,7 @@ const en = {
   step_up: 'This act needs UAE PASS level {{level}}. Your current level is {{current}}.',
   // receipt
   receipt: 'Consent receipt',
+  delegation_id: 'Delegation ID',
   receipt_footer: 'You can withdraw at any time. Withdrawing stops new data pulls.',
   view_receipt: 'View receipt',
   print: 'Print',
@@ -357,6 +358,7 @@ const ar: Dict = {
   through_provider: 'تأتي البيانات عبر المزوّد المرخّص وفقط بموافقة شركتك.',
   step_up: 'يتطلب هذا الإجراء مستوى {{level}} في الهوية الرقمية. مستواك الحالي {{current}}.',
   receipt: 'إيصال الموافقة',
+  delegation_id: 'معرّف التفويض',
   receipt_footer: 'يمكنك السحب في أي وقت. يوقف السحب أي سحب جديد للبيانات.',
   view_receipt: 'عرض الإيصال',
   print: 'طباعة',

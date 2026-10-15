@@ -9,7 +9,7 @@ from sqlalchemy.orm import Session
 
 from app.api.deps import require
 from app.core.db import get_db
-from app.core.errors import Forbidden
+from app.core.errors import Forbidden, ValidationFailed
 from app.modules.access.service import Principal
 from app.modules.audit.service import record_event
 from app.modules.bookkeeping import service as bk
@@ -60,7 +60,11 @@ class CreateIn(BaseModel):
 def create(company_id: str, body: CreateIn, principal: Principal = Depends(require("tax.prepare")), db: Session = Depends(get_db)):
     _guard_role(principal, company_id)
     bk.require_function(principal, company_id, "tax_preparation")
-    pack = svc.create_pack(db, company_id, body.tax_type, body.period_id, actor=principal, what_changed=body.what_changed)
+    try:
+        pack = svc.create_pack(db, company_id, body.tax_type, body.period_id, actor=principal, what_changed=body.what_changed)
+    except ValidationFailed:
+        db.commit()  # keep the completeness check, failure event and any scope escalation
+        raise
     db.commit()
     return svc.pack_dict(db, pack, role=bk.role_for(principal, company_id), lang=principal.language)
 

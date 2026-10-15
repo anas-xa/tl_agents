@@ -227,7 +227,7 @@ def ingest_transactions(db: Session, company_id: str, rows: list[dict], *, sourc
             invoice_date=row.get("invoice_date"),
             invoice_number=row.get("invoice_number"),
             description=row["description"],
-            description_language=row.get("language_class") or language_class(row["description"]),
+            description_language=row["language_class"] if row.get("language_class") in ("ar", "en", "mixed") else language_class(row["description"]),
             counterparty=row.get("counterparty"),
             direction=row.get("direction") or ("in" if amount >= 0 else "out"),
             original_amount_fils=abs(amount),
@@ -253,18 +253,28 @@ def ingest_transactions(db: Session, company_id: str, rows: list[dict], *, sourc
 
 
 def ingest_from_statement_lines(db: Session, company_id: str, *, consent_id: str | None = None) -> dict:
-    """Pull rows from the datalinks module's statement_lines when present; otherwise report the fallback."""
+    """Pull parsed lines of 'ready' statement uploads from datalinks (labelled 'manual, unverified').
+
+    Falls back to nothing (demo transactions are seeded) when the datalinks module is absent.
+    """
     try:
-        from app.modules.datalinks.models import StatementLine  # type: ignore
+        from app.modules.datalinks.models import StatementLine, StatementUpload  # type: ignore
     except ImportError:
         return {"ingested": 0, "source": "statement_lines_absent_fallback_demo"}
     gate = consent_state(db, company_id, "ledger")
     if not gate["allowed"]:
         return {"ingested": 0, "source": "consent_required", "state": gate["state"]}
+    stmt = (
+        select(StatementLine, StatementUpload)
+        .join(StatementUpload, StatementUpload.upload_id == StatementLine.upload_id)
+        .where(StatementLine.company_id == company_id, StatementUpload.status == "ready", StatementUpload.data_use_flag == "active", StatementLine.data_use_flag == "active")
+    )
     rows = []
-    for ln in db.scalars(select(StatementLine).where(StatementLine.company_id == company_id)):
-        rows.append({"source_id": ln.dedupe_key or ln.id, "txn_date": ln.txn_date, "description": ln.description, "amount_fils": ln.amount_fils, "currency": ln.currency, "counterparty": ln.counterparty, "statement_line_id": ln.id, "language_class": getattr(ln, "language_class", None)})
-    created = ingest_transactions(db, company_id, rows, source_kind="manual", source_system="statement_upload", consent_id=consent_id or gate.get("consent_id"), data_from=gate.get("data_from"))
+    for ln, up in db.execute(stmt).all():
+        rows.append({"source_id": f"{ln.dedupe_key}:{ln.occurrence_index}", "txn_date": ln.txn_date, "description": ln.description, "amount_fils": ln.amount_fils, "currency": ln.currency, "counterparty": ln.counterparty, "statement_line_id": str(ln.id), "language_class": ln.language_class, "consent_id": up.authorisation_consent_id})
+    created = []
+    for row in rows:
+        created += ingest_transactions(db, company_id, [row], source_kind="manual", source_system="statement_upload", consent_id=row["consent_id"] or consent_id or gate.get("consent_id"))
     return {"ingested": len(created), "source": "statement_lines"}
 
 

@@ -152,7 +152,7 @@ export function ReceiptDialog({ receipt, onClose }: { receipt: ReceiptOut | null
       {body.footer && <p><strong>{body.footer}</strong></p>}
       <div className="actions">
         <Button variant="secondary" onClick={() => window.print()}>{t('print')}</Button>
-        <Button autoFocus onClick={onClose}>{t('keep')}</Button>
+        <Button autoFocus onClick={onClose}>{t('translation:common.close')}</Button>
       </div>
     </Dialog>
   )
