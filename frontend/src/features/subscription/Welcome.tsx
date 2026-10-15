@@ -25,8 +25,8 @@ export default function Welcome() {
   const nav = useNavigate()
   const heading = useRef<HTMLHeadingElement>(null)
   const { data, error, loading, slow, reload } = useFetch<WelcomeData>(companyId ? `/api/companies/${companyId}/welcome` : null, [companyId])
-  const [lang, setLang] = useState<string>(i18n.language.startsWith('ar') ? 'ar' : 'en')
-  const [channel, setChannel] = useState<string>('portal')
+  const [langChoice, setLang] = useState<string | null>(null)
+  const [channelChoice, setChannel] = useState<string | null>(null)
   const [termsOpen, setTermsOpen] = useState(false)
   const [sending, setSending] = useState(false)
   const [err, setErr] = useState<string | null>(null)
@@ -35,10 +35,6 @@ export default function Welcome() {
   useEffect(() => {
     heading.current?.focus()
   }, [])
-  useEffect(() => {
-    if (data?.welcome.language_choice) setLang(data.welcome.language_choice)
-    if (data?.welcome.reminder_channel) setChannel(data.welcome.reminder_channel)
-  }, [data])
 
   if (!companyId) return null
   if (loading && !data) {
@@ -62,6 +58,9 @@ export default function Welcome() {
   }
   if (!data) return null
   const view = data.subscription
+  // The owner's earlier choice is shown until they pick again (derived, not mirrored into state).
+  const lang = langChoice ?? data.welcome.language_choice ?? (i18n.language.startsWith('ar') ? 'ar' : 'en')
+  const channel = channelChoice ?? data.welcome.reminder_channel ?? 'portal'
   const owner = view.can_change || view.role === 'remote_owner'
   const firstSub = view.licences.find((l) => l.subscription)?.subscription ?? null
   const tradeName = company ? (i18n.language.startsWith('ar') ? company.trade_name_ar : company.trade_name_en) : ''
