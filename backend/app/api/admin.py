@@ -15,7 +15,13 @@ from app.core.db import get_db
 from app.modules.access.service import Principal, authorize
 from app.modules.audit.models import AuditEvent, AuditPending
 from app.modules.audit.service import export_events, query_events, verify_chain
-from app.modules.config.service import config_history, list_config, list_rules, register_rule_version, set_config
+from app.modules.config.service import (
+    config_history,
+    list_config,
+    list_rules,
+    register_rule_version,
+    set_config,
+)
 from app.modules.identity.models import StaffRole
 from app.modules.identity.service import create_staff_invitation, remove_staff_role
 

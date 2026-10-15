@@ -27,7 +27,13 @@ from app.modules.identity.models import (
     StaffRole,
     UserSession,
 )
-from app.modules.identity.oidc import AssertionInvalid, ProviderUnavailable, authorize_url, exchange_and_validate, make_pkce
+from app.modules.identity.oidc import (
+    AssertionInvalid,
+    ProviderUnavailable,
+    authorize_url,
+    exchange_and_validate,
+    make_pkce,
+)
 
 LEVEL_ORDER = {"SOP1": 1, "SOP2": 2, "SOP3": 3}
 OWNER_LEVEL_ROLES = {"owner", "remote_owner"}

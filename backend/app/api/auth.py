@@ -13,7 +13,13 @@ from app.core.settings import get_settings
 from app.modules.access.service import Principal, permissions_for
 from app.modules.companies.models import Company
 from app.modules.identity.models import Identity, UserSession
-from app.modules.identity.service import cancel_signin, complete_signin, end_session, session_timing, start_signin
+from app.modules.identity.service import (
+    cancel_signin,
+    complete_signin,
+    end_session,
+    session_timing,
+    start_signin,
+)
 
 router = APIRouter(prefix="/api/auth", tags=["auth"])
 
