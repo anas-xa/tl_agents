@@ -54,9 +54,12 @@ def demo_seeder(fn: Callable[[Session], None]) -> Callable[[Session], None]:
 
 
 def seed_demo(db: Session) -> None:
+    from app.discovery import run_demo_seeds
+
     if db.get(Company, CO_ALNOOR) is not None:
         for fn in DEMO_SEEDERS:
             fn(db)
+        run_demo_seeds(db)
         return
     today = date.today()
     companies = [
@@ -113,6 +116,7 @@ def seed_demo(db: Session) -> None:
     db.flush()
     for fn in DEMO_SEEDERS:
         fn(db)
+    run_demo_seeds(db)
     db.flush()
 
 

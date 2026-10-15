@@ -23,10 +23,10 @@ def _register_routers(app: FastAPI) -> None:
         from app.modules.identity.mock_uaepass import router as mock_router
 
         app.include_router(mock_router)
-    # Feature modules register themselves here (see app/api/registry.py).
-    from app.api.registry import ROUTERS
+    # Feature modules are auto-discovered (app/modules/<name>/api.py exposing `router`).
+    from app.discovery import routers
 
-    for r in ROUTERS:
+    for r in routers():
         app.include_router(r)
 
 

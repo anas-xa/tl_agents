@@ -58,4 +58,7 @@ def seed_reference_data(db: Session) -> None:
     ensure_rule(db, "min-assurance-v1", "Minimum UAE PASS assurance level for sign-in", instrument="UAE PASS service terms (to be confirmed)", status="provisional", owner_role="Qeonix platform security lead", parameters={"min_level": "SOP2", "approval_level": "SOP3"})
     for fn in SEEDERS:
         fn(db)
+    from app.discovery import run_seeds
+
+    run_seeds(db)
     db.flush()
