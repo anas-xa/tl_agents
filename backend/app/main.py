@@ -32,12 +32,13 @@ def _register_routers(app: FastAPI) -> None:
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
-    init_db()
-    from app.seed import seed_reference_data
+    if get_settings().environment != "test":  # tests start from a pre-seeded template database
+        init_db()
+        from app.seed import seed_reference_data
 
-    with SessionLocal() as db:
-        seed_reference_data(db)
-        db.commit()
+        with SessionLocal() as db:
+            seed_reference_data(db)
+            db.commit()
     yield
 
 

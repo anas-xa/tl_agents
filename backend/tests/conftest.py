@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import os
+import shutil
 import tempfile
 from collections.abc import Iterator
 
@@ -22,8 +23,12 @@ from app.main import app  # noqa: E402
 from app.seed import seed_reference_data  # noqa: E402
 
 
-@pytest.fixture(autouse=True)
-def fresh_db() -> Iterator[None]:
+_DB_FILE = os.environ["QEONIX_DATABASE_URL"].removeprefix("sqlite:///")
+_TEMPLATE = f"{_tmp}/template.db"
+
+
+def _build_template() -> None:
+    """Schema + reference seed + demo seed, built once per test session."""
     from app import models  # noqa: F401
 
     Base.metadata.drop_all(bind=engine)
@@ -34,7 +39,27 @@ def fresh_db() -> Iterator[None]:
 
         seed_demo(db)
         db.commit()
+    engine.dispose()
+    shutil.copyfile(_DB_FILE, _TEMPLATE)
+
+
+def _clear_process_caches() -> None:
+    """In-memory caches are keyed on database state; a fresh database needs fresh caches."""
+    from app.modules.consent import service as consent_service
+
+    consent_service._GATE_CACHE.clear()
+
+
+@pytest.fixture(autouse=True)
+def fresh_db() -> Iterator[None]:
+    """Every test starts from an identical copy of the seeded template database."""
+    if not os.path.exists(_TEMPLATE):
+        _build_template()
+    engine.dispose()
+    shutil.copyfile(_TEMPLATE, _DB_FILE)
+    _clear_process_caches()
     yield
+    engine.dispose()
 
 
 @pytest.fixture
