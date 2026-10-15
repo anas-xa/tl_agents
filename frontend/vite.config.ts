@@ -9,7 +9,6 @@ export default defineConfig({
     proxy: {
       '/api': 'http://localhost:8000',
       '/mock-uaepass': 'http://localhost:8000',
-      '/verify': 'http://localhost:8000',
     },
   },
   test: {
