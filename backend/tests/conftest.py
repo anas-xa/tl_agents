@@ -22,7 +22,6 @@ from app.core.db import Base, SessionLocal, engine  # noqa: E402
 from app.main import app  # noqa: E402
 from app.seed import seed_reference_data  # noqa: E402
 
-
 _DB_FILE = os.environ["QEONIX_DATABASE_URL"].removeprefix("sqlite:///")
 _TEMPLATE = f"{_tmp}/template.db"
 
