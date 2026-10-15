@@ -367,7 +367,7 @@ def sbr_indicator(db: Session, *, period_start: date, period_end: date, revenue_
     r = rule_lookup(db, "sbr", period_end)
     cutoff_row = current_rule(db, "sbr")
     cutoff = cutoff_row.effective_to if cutoff_row else None
-    out: dict[str, Any] = {"instrument": "Ministerial Decision 73/2023", "rule": rule_ref(r or cutoff_row), "revenue_fils": revenue_fils, "revenue_source": revenue_source or "owner to confirm", "period_end": period_end.isoformat(), "cutoff_date": cutoff.isoformat() if cutoff else None, "election_status": election, "review_status": "not reviewed", "label": "indicator only, not a decision; election is the taxpayer's own act, made in the return", "line_class": "calculated"}
+    out: dict[str, Any] = {"instrument": (r or cutoff_row).instrument if (r or cutoff_row) else "Ministerial Decision 73/2023", "rule": rule_ref(r or cutoff_row), "revenue_fils": revenue_fils, "revenue_source": revenue_source or "owner to confirm", "period_end": period_end.isoformat(), "cutoff_date": cutoff.isoformat() if cutoff else None, "election_status": election, "review_status": "not reviewed", "label": "indicator only, not a decision; election is the taxpayer's own act, made in the return", "line_class": "calculated"}
     if r is None:
         out |= {"indicator": "not eligible", "text": "not eligible", "reason": f"period ends after {cutoff.strftime('%d %b %Y') if cutoff else 'the held relief end date'}", "election_allowed": False}
         return out

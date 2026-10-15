@@ -72,19 +72,24 @@ def test_sbr_fixture_c_revenue_one_dirham_over(db):
 
 
 def test_sbr_fixture_d_period_ending_after_cutoff_blocked(db):
-    o = _ct(db, "2027-01-01_2027-12-31", accounting_profit_fils=450_000 * AED, revenue_fils=2_000_000 * AED, sbr_election="elected")
-    assert o["sbr"]["indicator"] == "not eligible" and o["sbr"]["election_allowed"] is False and o["sbr"]["reason"] == "period ends after 31 Dec 2026"
-    assert o["tax_fils"] == 6_750 * AED and o["sbr"]["cutoff_date"] == "2026-12-31"
-    o = _ct(db, "2026-01-02_2027-01-01", accounting_profit_fils=450_000 * AED, revenue_fils=2_000_000 * AED)
-    assert o["sbr"]["indicator"] == "not eligible" and o["sbr"]["reason"] == "period ends after 31 Dec 2026"
+    o = _ct(db, "2030-01-01_2030-12-31", accounting_profit_fils=450_000 * AED, revenue_fils=2_000_000 * AED, sbr_election="elected")
+    assert o["sbr"]["indicator"] == "not eligible" and o["sbr"]["election_allowed"] is False and o["sbr"]["reason"] == "period ends after 31 Dec 2029"
+    assert o["tax_fils"] == 6_750 * AED and o["sbr"]["cutoff_date"] == "2029-12-31"
+    o = _ct(db, "2029-01-02_2030-01-01", accounting_profit_fils=450_000 * AED, revenue_fils=2_000_000 * AED)
+    assert o["sbr"]["indicator"] == "not eligible" and o["sbr"]["reason"] == "period ends after 31 Dec 2029"
 
 
-def test_sbr_v2_extension_is_registered_but_never_applied(db):
+def test_sbr_v2_extension_covers_periods_ending_2027_to_2029(db):
     from app.modules.config.models import RuleRegisterEntry
 
+    v1 = db.scalar(select(RuleRegisterEntry).where(RuleRegisterEntry.rule_id == "sbr-v1"))
     v2 = db.scalar(select(RuleRegisterEntry).where(RuleRegisterEntry.rule_id == "sbr-v2"))
-    assert v2 is not None and v2.status == "to_be_confirmed" and v2.is_current is False and v2.parameters["applicable"] is False
-    assert svc.rule_lookup(db, "sbr", date(2028, 12, 31)) is None and svc.current_rule(db, "sbr").rule_id == "sbr-v1"
+    assert v1.is_current is False and v1.effective_to == date(2026, 12, 31)  # kept as history
+    assert v2.is_current is True and v2.status == "to_be_confirmed" and v2.effective_to == date(2029, 12, 31)
+    assert svc.rule_lookup(db, "sbr", date(2026, 12, 31)).rule_id == "sbr-v1"
+    assert svc.rule_lookup(db, "sbr", date(2028, 12, 31)).rule_id == "sbr-v2"
+    o = _ct(db, "2027-01-01_2027-12-31", accounting_profit_fils=450_000 * AED, revenue_fils=2_000_000 * AED, sbr_election="elected")
+    assert o["sbr"]["indicator"] == "may be eligible" and o["tax_fils"] == 0 and "131/2026" in o["sbr"]["instrument"]
 
 
 def test_sbr_fixture_e_prior_period_over_limit(db):
