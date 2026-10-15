@@ -5,7 +5,7 @@ import { useAuth } from '../../app/auth'
 import { Button, Chip, Message, Panel, Skeleton, Table } from '../../components/ui'
 import { post } from '../../lib/api'
 import { formatDateTime } from '../../lib/format'
-import { useBi, useFetch, type Bi } from './lib'
+import { srOnly, useBi, useFetch, type Bi } from './lib'
 
 interface Component { component_id: string; name: string; component_type: string; hosting_location: string; status: 'pass' | 'fail' | 'pending'; fail_reasons: string[]; backup_location: string | null; support_access_location: string | null }
 interface Decision { release_id: string; result: 'pass' | 'blocked'; reasons: { code: string; component?: string; en: string; ar: string }[]; next_step: Bi | null; checks: { check: string; result: string }[]; decided_at: string }
@@ -68,7 +68,7 @@ export default function ResidencyTab() {
   const cardRefresh = data.state === 'no_inventory' || data.state === 'generation_failed' || canManage
   return (
     <div>
-      <div aria-live="polite" className="sr-only">{announce}</div>
+      <div aria-live="polite" style={srOnly}>{announce}</div>
       {refreshing && <p aria-busy="true"><Chip tone="info">{t('refreshing')}</Chip> {t('checking_latest')}</p>}
       {data.state === 'generation_failed' && data.message && (
         <Message kind="error">

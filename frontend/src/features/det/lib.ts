@@ -1,3 +1,4 @@
+import type React from 'react'
 import { useCallback, useEffect, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import { ApiError, get } from '../../lib/api'
@@ -41,3 +42,6 @@ export function useFetch<T>(path: string | null, deps: unknown[] = []) {
 export function errorCode(e: Error | null): string | null {
   return e instanceof ApiError ? e.code : null
 }
+
+/** Visually hidden style for live regions (the shared stylesheet has no sr-only class). */
+export const srOnly: React.CSSProperties = { position: 'absolute', width: 1, height: 1, overflow: 'hidden', clip: 'rect(0 0 0 0)', whiteSpace: 'nowrap' }

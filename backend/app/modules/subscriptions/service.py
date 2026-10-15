@@ -144,7 +144,9 @@ def allocate_platform_derived(payment_fils: int, lines: list[dict]) -> list[dict
         out.append({"line_id": line["line_id"], "line_type": line.get("line_type"), "amount_fils": round_half_up_div(payment_fils * int(line["gross_fils"]), total)})
     residual = payment_fils - sum(o["amount_fils"] for o in out)
     if residual:
-        largest = max(range(len(lines)), key=lambda i: int(lines[i]["gross_fils"]))
+        # the residual fil (positive or negative) never lands on the subscription line
+        candidates = [i for i in range(len(lines)) if lines[i].get("line_type") != "smart_services_subscription"] or list(range(len(lines)))
+        largest = max(candidates, key=lambda i: int(lines[i]["gross_fils"]))
         out[largest]["amount_fils"] += residual
     return out
 

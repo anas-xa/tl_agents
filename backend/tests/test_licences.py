@@ -138,7 +138,7 @@ def test_correction_and_incomplete_renewal_are_held_and_payment_is_never_the_sig
 def test_k6_classification_fixtures(client, db):
     old_expiry = TODAY - timedelta(days=5)
     _post(client, [_ev("EV-K-1", "DET-9000010", "ISSUED", ref="R-14", effective=old_expiry - timedelta(days=364), new_expiry=old_expiry)])
-    r = _post(client, [_ev("EV-K-2", "DET-9000010", "RENEWED", ref="R-15", effective=old_expiry + timedelta(days=1), new_expiry=old_expiry + timedelta(days=365), completed=datetime.combine(old_expiry + timedelta(days=3), datetime.min.time()))])
+    _post(client, [_ev("EV-K-2", "DET-9000010", "RENEWED", ref="R-15", effective=old_expiry + timedelta(days=1), new_expiry=old_expiry + timedelta(days=365), completed=datetime.combine(old_expiry + timedelta(days=3), datetime.min.time()))])
     ev = db.scalar(select(LicenceEvent).where(LicenceEvent.event_id == "EV-K-2"))
     assert ev.k6_class == "late" and ev.k6_rule_version == "k6-v1" and ev.previous_expiry_date == old_expiry
     # grace period configured -> late within grace; cancelled status -> excluded from the denominator
@@ -165,7 +165,9 @@ def test_stale_flag_after_freshness_window(client, db):
 
 def test_history_kept_when_record_changes(client, db):
     _post(client, [_ev("EV-H-1", "DET-9000013", "ISSUED", ref="R-20", effective=TODAY - timedelta(days=5))])
-    _post(client, [_ev("EV-H-2", "DET-9000013", "AMENDED", ref="R-21", effective=TODAY, licence={"issuing_authority": "DET", "licence_type": "mainland", "legal_form": "Sole establishment", "status": "ACTIVE"})])
+    amend = _ev("EV-H-2", "DET-9000013", "AMENDED", ref="R-21", effective=TODAY)
+    amend["licence"] = {"issuing_authority": "DET", "licence_type": "mainland", "legal_form": "Sole establishment", "status": "ACTIVE"}
+    _post(client, [amend])
     lic = db.scalar(select(Licence).where(Licence.licence_number == "DET-9000013"))
     hist = list(db.scalars(select(LicenceHistory).where(LicenceHistory.licence_id == lic.id, LicenceHistory.field == "legal_form")))
     assert hist and hist[-1].previous_value == "LLC" and hist[-1].current_value == "Sole establishment"

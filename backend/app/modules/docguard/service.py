@@ -30,7 +30,7 @@ ADAPTER_POLICY_DEFAULT = {
     "never": ["write_external", "file", "submit", "pay", "transfer", "consent_change", "approve", "role_change", "licence_amend"],
     "context_only_params": ["company_id", "recipient", "destination", "account"],
 }
-CREDENTIAL_PATTERNS = (re.compile(r"(?i)(api[_-]?key|secret|password|bearer\s+[a-z0-9\-_\.]{8,}|token)\s*[:=]"), re.compile(r"sk-[A-Za-z0-9]{16,}"))
+CREDENTIAL_PATTERNS = (re.compile(r"(?i)(api[_-]?key|secret|password|token)[\"']?\s*[:=]"), re.compile(r"(?i)bearer\s+[a-z0-9\-_\.]{8,}"), re.compile(r"sk-[A-Za-z0-9]{16,}"))
 
 # Screening rule set (versioned, AR/EN). Each rule: (flag_type, internal_rule_name, compiled regex).
 _RULES: list[tuple[str, str, re.Pattern]] = [
@@ -57,9 +57,9 @@ def screen_text(text: str, *, hidden_text: str | None = None, metadata_text: str
     for label, payload in (("hidden_text", hidden_text), ("metadata", metadata_text)):
         if payload and payload.strip():
             hits.append({"flag_type": "B", "rule": f"hidden.{label}"})
-            for ft, name, pat in _RULES:  # hidden text is screened like visible text (treated as untrusted)
+            for _ft, name, pat in _RULES:  # hidden text is untrusted and screened too; reported as type B
                 if pat.search(payload):
-                    hits.append({"flag_type": ft, "rule": f"hidden.{name}"})
+                    hits.append({"flag_type": "B", "rule": f"hidden.{name}"})
     if embedded_files:
         hits.append({"flag_type": "B", "rule": "hidden.embedded_file"})
     return hits
@@ -120,7 +120,7 @@ def isolate_and_extract(db: Session, doc: GuardedDocument, *, text: str, schema:
     doc.missing_fields = missing
     doc.screening_rule_version = SCREENING_RULE_VERSION
     if hits:
-        order = {"A": 0, "C": 1, "B": 2, "D": 3, "E": 4}
+        order = {"B": 0, "A": 1, "C": 2, "D": 3, "E": 4} if any(h["rule"].startswith("hidden.") for h in hits) else {"A": 0, "C": 1, "B": 2, "D": 3, "E": 4}
         top = sorted(hits, key=lambda h: order[h["flag_type"]])[0]
         doc.trust_label, doc.flag_type, doc.flag_reason_key, doc.internal_rule, doc.extracted_trust = "flagged", top["flag_type"], f"flag_{top['flag_type']}", top["rule"], "unverified"
         record_event(db, event_type="INJECTION_ATTEMPT_RECORDED" if top["flag_type"] in ("A", "C") else "DOCUMENT_FLAGGED", category="document", outcome="flagged", reason_code=f"FLAG_{top['flag_type']}", company_id=doc.company_id, subject_type="document", subject_id=doc.id, details={"rules": [h["rule"] for h in hits], "flag_type": top["flag_type"], "action_taken": "none", "screening_rule_version": SCREENING_RULE_VERSION})

@@ -4,10 +4,9 @@ from __future__ import annotations
 
 import io
 import zipfile
-
-import pytest
 from datetime import timedelta
 
+import pytest
 from sqlalchemy import func, select
 
 from app.core.time import utcnow

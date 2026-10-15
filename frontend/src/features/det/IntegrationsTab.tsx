@@ -4,7 +4,7 @@ import { useAuth } from '../../app/auth'
 import { Button, Chip, Dialog, Field, Message, Panel, Skeleton, Table } from '../../components/ui'
 import { ApiError, post } from '../../lib/api'
 import { formatDateTime } from '../../lib/format'
-import { useBi, useFetch, type Bi } from './lib'
+import { srOnly, useBi, useFetch, type Bi } from './lib'
 
 interface Item { item_id: string; text_en?: string; text_ar?: string; item_type: string; tag?: string | null; owner_name?: string | null; evidence_reference?: string | null; evidence_date?: string | null; approver_identity?: string | null; complete: boolean; missing?: string[] }
 interface Row { row_id: string; integration: string; name: Bi; switch_key: string; switch_state: 'ON' | 'OFF'; phase: number; fallback_path: string | null; status: string; mock: boolean; progress: { n: number; m: number; label: Bi; word: 'Complete' | 'Incomplete' | 'Not started' }; version: number; updated_at: string; items: Item[]; live: boolean; switch_history?: { state: string; changed_at: string; reason: string }[] }
@@ -33,13 +33,13 @@ export default function IntegrationsTab() {
       setMsg(e instanceof ApiError && e.code === 'ROW_NOT_CONFIRMED_LIVE' ? t('switch_on_disabled') : (e as Error).message)
     }
   }
-  if (loading && !data) return <div aria-busy="true"><span className="sr-only">{t('loading_register')}</span><Skeleton rows={5} /></div>
+  if (loading && !data) return <div aria-busy="true"><span style={srOnly}>{t('loading_register')}</span><Skeleton rows={5} /></div>
   if (error && !data) return <Message kind="error">{t('register_error', { when: '—' })} <Button variant="link" onClick={reload}>{t('try_again')}</Button></Message>
   if (!data) return null
   const statusTone = (s: string) => (s === 'confirmed_live' ? 'ok' : s === 'evidence_pending' ? 'attention' : s === 'expired' ? 'urgent' : 'neutral')
   return (
     <div>
-      <div aria-live="polite" className="sr-only">{live}</div>
+      <div aria-live="polite" style={srOnly}>{live}</div>
       <p>{t('integrations_intro')}</p>
       {error && loadedAt && <Message kind="warning">{t('register_error', { when: formatDateTime(loadedAt, i18n.language) })} <Button variant="link" onClick={reload}>{t('try_again')}</Button></Message>}
       {msg && <Message kind="error">{msg}</Message>}

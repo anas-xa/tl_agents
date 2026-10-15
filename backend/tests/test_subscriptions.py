@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import ast
 import pathlib
 from datetime import date, datetime, timedelta
 
@@ -15,7 +16,7 @@ from app.modules.subscriptions import service
 from app.modules.subscriptions.models import BillingRequest, Case, ReconciliationItem, Subscription
 from app.modules.subscriptions.strings import STRINGS, TERMS_SECTIONS
 from tests.conftest import sign_in
-from tests.test_licences import SECRET, TODAY, _ev, _post
+from tests.test_licences import TODAY, _ev, _post
 
 BANNED = ("Included with your licence", "audit certificate", "Tax Agent", "PDPL-compliant", "hosted in the UAE", "your data is deleted", "penalty applies")
 
@@ -69,18 +70,41 @@ def test_recognition_remainder_cohort_month_and_allocation_rule():
     assert [a["amount_fils"] for a in full] == [1050000, 63000]
     half = service.allocate_platform_derived(556500, lines)
     assert half[1]["amount_fils"] == 31500 and sum(a["amount_fils"] for a in half) == 556500
-    odd = service.allocate_platform_derived(100001, [{"line_id": "L1", "line_type": "licence_fee", "gross_fils": 1000}, {"line_id": "L2", "line_type": "smart_services_subscription", "gross_fils": 1000}])
-    assert sum(a["amount_fils"] for a in odd) == 100001 and odd[0]["amount_fils"] >= odd[1]["amount_fils"]  # residual on the licence line
+    # equal lines: each rounds half-up to 50001; the -1 residual goes to the licence line, never the subscription line
+    for order in (["L1", "L2"], ["L2", "L1"]):
+        lines2 = {"L1": {"line_id": "L1", "line_type": "licence_fee", "gross_fils": 1000}, "L2": {"line_id": "L2", "line_type": "smart_services_subscription", "gross_fils": 1000}}
+        odd = {a["line_id"]: a["amount_fils"] for a in service.allocate_platform_derived(100001, [lines2[k] for k in order])}
+        assert odd == {"L1": 50000, "L2": 50001}
     assert service.compute_fee(60000, date(2027, 1, 1), date(2027, 4, 10), proration="none")["net_fils"] == 60000  # PM pilot alternative
 
 
+def _imports(path: pathlib.Path) -> set[str]:
+    tree = ast.parse(path.read_text())
+    out: set[str] = set()
+    for node in ast.walk(tree):
+        if isinstance(node, ast.ImportFrom) and node.module:
+            out.add(node.module)
+            out.update(f"{node.module}.{a.name}" for a in node.names)
+        elif isinstance(node, ast.Import):
+            out.update(a.name for a in node.names)
+    return out
+
+
 def test_contract_no_code_path_between_handler_and_subscriptions():
+    """Contract test (spec E2-S2): the licence-event handler never imports subscription or billing code, and
+    subscription code never imports or calls the licence-event handler. Comments may mention the word."""
     root = pathlib.Path(__file__).resolve().parents[1] / "app" / "modules"
-    lic_handler = (root / "licences" / "service.py").read_text()
-    assert "subscription" not in lic_handler.lower()
+    handler_imports = _imports(root / "licences" / "service.py")
+    assert not any(m.startswith(("app.modules.subscriptions", "app.modules.cohorts")) for m in handler_imports), handler_imports
     for f in (root / "subscriptions").glob("*.py"):
-        src = f.read_text()
-        assert "intake_event" not in src and "from app.modules.licences.service" not in src and "licences.service" not in src, f
+        imports = _imports(f)
+        assert not any(m.startswith("app.modules.licences.service") for m in imports), (f, imports)
+        assert "intake_event" not in {m.rsplit(".", 1)[-1] for m in imports}, f
+    # the handler only writes an outbox row; downstream consumers are registered on the outbox module
+    from app.modules.licences.outbox import OUTBOX_CONSUMERS
+    from app.modules.subscriptions.service import consume_outbox
+
+    assert consume_outbox in OUTBOX_CONSUMERS
 
 
 # --- creation from licence events --------------------------------------------------------------------------
