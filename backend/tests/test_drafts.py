@@ -45,12 +45,25 @@ def _packs(client):
     return r.json()
 
 
+def _fresh_ct_pack(db, *, created_by: str | None = None) -> DraftPack:
+    """An unreviewed corporate tax pack for the prior year (the demo year's return is already filed and locked)."""
+    tmpl = db.scalar(select(DraftPack).where(DraftPack.company_id == CO_ALNOOR, DraftPack.tax_type == "ct"))
+    prior = f"FY{demo_ct_year().start.year - 1}"
+    pack = DraftPack(company_id=CO_ALNOOR, tax_type="ct", period_id=prior, version=1, data_version="test-prior-year", rule_version=tmpl.rule_version, assumptions=tmpl.assumptions, lines=tmpl.lines, sources=tmpl.sources, basis=tmpl.basis, review_status="not_reviewed", created_by_uuid=created_by, created_by_name="Omar Haddad" if created_by else "test", is_demo=True)
+    db.add(pack)
+    db.flush()
+    svc._history(db, pack, "not_reviewed", actor=None, role=None, system=True)
+    db.commit()
+    return pack
+
+
 def test_demo_packs_carry_label_watermark_marks_and_sbr_indicator(client):
     sign_in(client, "khalid")
     packs = _packs(client)["packs"]
     vat = _open_vat(packs)
     ct = next(p for p in packs if p["tax_type"] == "ct")
-    assert vat["review_status"] == "under_review" and ct["review_status"] == "not_reviewed"
+    # demo: the corporate tax return for the demo year was approved and filed before its due date (locked)
+    assert vat["review_status"] == "under_review" and ct["review_status"] == "filed_user_confirmed"
     body = client.get(f"{D}/{vat['id']}").json()
     assert body["ai_label"] == {"en": "AI-generated draft: not a filed return", "ar": "مسودة مُعدّة بالذكاء الاصطناعي: ليست إقرارًا مقدَّمًا"}
     assert body["watermark"]["en"] == "Draft working figures arranged to follow the FTA return layout. Not a tax return. Not filed. Not tax advice."
@@ -64,7 +77,7 @@ def test_demo_packs_carry_label_watermark_marks_and_sbr_indicator(client):
     ct_body = client.get(f"{D}/{ct['id']}").json()
     sbr = next(ln for ln in ct_body["lines"] if ln["key"] == "sbr")
     assert sbr["sbr"]["indicator"] == "may be eligible" and sbr["sbr"]["text"] == "eligible, election needed" and sbr["sbr"]["election_status"] == "undecided"
-    assert ct_body["not_reviewed_by_human"] is True
+    assert ct_body["not_reviewed_by_human"] is False  # the owner approved the filed return
 
 
 def test_banned_terms_checker():
@@ -153,17 +166,18 @@ def test_out_of_date_when_source_data_changes(client, db):
 
 
 def test_held_drafts_owner_only_one_at_a_time_keep_and_discard(client, db):
+    extra = _fresh_ct_pack(db, created_by=PERSONA_UUIDS["omar"])
     n = svc.hold_packs_for(db, PERSONA_UUIDS["omar"], CO_ALNOOR, display_name="Omar Haddad")
     db.commit()
-    assert n == 2
+    assert n == 2  # the open VAT pack and the prior-year draft: filed (locked) returns are never held
     sign_in(client, "omar")
-    assert [p["period_id"] for p in _packs(client)["packs"]] == [PREV]  # only the filed (locked) return is never held
+    assert {p["period_id"] for p in _packs(client)["packs"]} == {PREV, demo_ct_year().period_id}
     held = db.scalar(select(DraftPack).where(DraftPack.company_id == CO_ALNOOR, DraftPack.tax_type == "vat", DraftPack.period_id == OPEN))
     assert client.get(f"{D}/{held.id}").status_code == 403
     client.cookies.clear()
     sign_in(client, "khalid")
     lst = _packs(client)
-    assert lst["held_count"] == 2 and all(p["on_hold"] and p["held_delegate"] == "Omar Haddad" for p in lst["packs"] if p["period_id"] != PREV)
+    assert lst["held_count"] == 2 and all(p["on_hold"] and p["held_delegate"] == "Omar Haddad" for p in lst["packs"] if p["period_id"] not in (PREV, demo_ct_year().period_id))
     assert client.get(f"{D}/{held.id}/export", params={"lang": "en"}).status_code == 409
     r = client.post(f"{D}/{held.id}/hold-decision", json={"decision": "keep_changes", "reason_code": ""})
     assert r.status_code == 422
@@ -171,7 +185,7 @@ def test_held_drafts_owner_only_one_at_a_time_keep_and_discard(client, db):
     assert r.status_code == 200 and r.json()["still_on_hold"] == 1
     new = client.get(f"{D}/{r.json()['new_pack_id']}").json()
     assert new["review_status"] == "reviewed_by_owner_after_hold" and new["review_status_label"]["en"] == "Reviewed by owner after hold, no independent review"
-    ct = db.scalar(select(DraftPack).where(DraftPack.company_id == CO_ALNOOR, DraftPack.tax_type == "ct", DraftPack.on_hold.is_(True)))
+    ct = db.get(DraftPack, extra.id)
     r = client.post(f"{D}/{ct.id}/hold-decision", json={"decision": "discard_changes", "reason_code": "other"})
     assert r.status_code == 200 and r.json()["announcement"] == "Draft discarded. 0 drafts still on hold."
     client.cookies.clear()
@@ -224,8 +238,8 @@ def test_remote_owner_and_k17_draft_ready(client):
     assert card["draft_ready_at"] and card["data_complete_at"]
 
 
-def test_send_for_review_by_delegate(client):
+def test_send_for_review_by_delegate(client, db):
+    pack = _fresh_ct_pack(db)
     sign_in(client, "omar")
-    ct = next(p for p in _packs(client)["packs"] if p["tax_type"] == "ct")
-    r = client.post(f"{D}/{ct['id']}/send-for-review")
+    r = client.post(f"{D}/{pack.id}/send-for-review")
     assert r.status_code == 200 and r.json()["review_status"] == "under_review" and [h["to"] for h in r.json()["history"]] == ["not_reviewed", "prepared", "under_review"]

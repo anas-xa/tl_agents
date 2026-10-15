@@ -42,8 +42,21 @@ class AuditEvent(Base):
     browser_family: Mapped[str | None] = mapped_column(String(40))
     log_class: Mapped[str] = mapped_column(String(40), default="standard")  # retention class
     corrects_event_id: Mapped[str | None] = mapped_column(String(40))
+    # Chain position, assigned when the writing transaction commits (see audit.service: sealing). The chain is
+    # verified in seq order, so concurrent requests can never fork it.
+    seq: Mapped[int | None] = mapped_column(Integer, unique=True, index=True)
     prev_hash: Mapped[str | None] = mapped_column(String(64))
-    hash: Mapped[str] = mapped_column(String(64))
+    hash: Mapped[str] = mapped_column(String(64), default="")
+
+
+class AuditChainHead(Base):
+    """Single row holding the last sealed position; locked while a transaction seals its events."""
+
+    __tablename__ = "audit_chain_head"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    last_seq: Mapped[int] = mapped_column(Integer, default=0)
+    last_hash: Mapped[str | None] = mapped_column(String(64))
 
 
 class ActorIdentityMap(Base):

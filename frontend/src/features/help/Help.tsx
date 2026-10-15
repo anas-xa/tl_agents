@@ -269,8 +269,8 @@ function CaseDetail({ c, canReject, isOwner, companyId, onBack, onChange }: { c:
 function CitationBlock({ c, lang }: { c: Citation; lang: string }) {
   const { t } = useTranslation('help')
   return (
-    <div className="citation" lang="ar" dir="rtl">
-      <dl>
+    <div className="citation">
+      <dl className="kv">
         <dt>{t('qa.instrument')}</dt><dd><bdi>{lang === 'ar' ? c.instrument_ar : c.instrument}</bdi></dd>
         <dt>{t('qa.article')}</dt><dd><Ident>{c.article}</Ident></dd>
         <dt>{t('qa.version')}</dt><dd><Ident>{c.corpus_version}</Ident></dd>

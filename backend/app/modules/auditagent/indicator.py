@@ -598,7 +598,15 @@ def audit_flag_summary(db: Session, company_id: str) -> dict:
     """Dashboard summary (K20 state): state, reason codes, wording keys, evaluated_at."""
     row = latest_result(db, company_id)
     w = wording(row)
-    return {"state": row.result if row else "not_yet_assessed", "reason_codes": (row.reasons + row.cannot_determine_reasons) if row else [], "wording_keys": w["keys"], "evaluated_at": row.evaluated_at.isoformat() if row else None, "criteria_version": row.criteria_version_id if row else None, "confirmation_state": row.confirmation_state if row else None, "case_id": row.case_id if row else None, "near_threshold": bool(row and row.near_threshold)}
+    out = {"state": row.result if row else "not_yet_assessed", "reason_codes": (row.reasons + row.cannot_determine_reasons) if row else [], "wording_keys": w["keys"], "evaluated_at": row.evaluated_at.isoformat() if row else None, "criteria_version": row.criteria_version_id if row else None, "confirmation_state": row.confirmation_state if row else None, "case_id": row.case_id if row else None, "near_threshold": bool(row and row.near_threshold)}
+    if row is not None:
+        # The approved, fixed headline wording (never 'audit mandatory'), so summaries show the same text as SC8.
+        headline = next((k for k in w["keys"] if k.startswith("headline_")), None)
+        if headline:
+            en, ar = _text(row, "en"), _text(row, "ar")
+            out["state_label"] = {"en": en[headline], "ar": ar[headline]}
+            out["badge"] = {"en": s("badge_indicative", "en"), "ar": s("badge_indicative", "ar")}
+    return out
 
 
 # --- K20 ---------------------------------------------------------------------------------------------------------

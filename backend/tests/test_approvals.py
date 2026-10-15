@@ -494,15 +494,16 @@ def test_read_back_match_rules():
 def test_k23_no_data_pass_breach_and_pilot_stop(client, db):
     assert monitoring.k23(db, "2030-01")["display"] == "No data" and monitoring.k23(db, "2030-01")["status"] == "no_data"
     k = monitoring.k23(db)
-    assert k["denominator"] == 1 and k["display"] == "100.0%" and k["status"] == "pass" and k["self_reported_count"] == 1 and k["read_back"] == "Not available"
+    # demo: the previous VAT quarter and the corporate tax year were both approved, then filed (self-declared)
+    assert k["denominator"] == 2 and k["display"] == "100.0%" and k["status"] == "pass" and k["self_reported_count"] == 2 and k["read_back"] == "Not available"
     # a submission recorded without a valid approval (detective control)
     prev = db.scalar(select(ManualFilingRecord).where(ManualFilingRecord.id == "MFR-DEMO-ALNOOR-PREV"))
     db.add(ManualFilingRecord(company_id=CO_ALNOOR, pack_id=prev.pack_id, approval_id=None, data_version_hash=prev.data_version_hash, tax_type="vat", state="filed_outside_self_declared", filed_date=dubai_today(), self_filed_confirmed=True))
     db.commit()
     out = monitoring.run_compliance_job(db)
     db.commit()
-    assert out["k23"]["status"] == "breach" and out["k23"]["display"] == "50.0%" and out["k23"]["breach_count"] == 1
-    assert out["k23"]["text"]["en"] == "Below 100%: 1 of 2 submissions have no valid approval. Review the exceptions."
+    assert out["k23"]["status"] == "breach" and out["k23"]["display"] == "66.7%" and out["k23"]["breach_count"] == 1
+    assert out["k23"]["text"]["en"] == "Below 100%: 1 of 3 submissions have no valid approval. Review the exceptions."
     exc = db.scalar(select(ComplianceException))
     assert exc.severity == 1 and exc.reason_code == "no_valid_approval_found" and exc.case_owner_role == "det_pilot_manager"
     alerts = {(a.recipient_role, a.kind) for a in db.scalars(select(ComplianceAlert))}
@@ -549,7 +550,7 @@ def test_k23_grant_revoked_later_still_valid_and_k24_maths(client, db):
     svc.revoke_grant(db, owner, CO_ALNOOR, g.id)  # grant revoked after the filing: judged at submission time
     db.commit()
     k = monitoring.k23(db)
-    assert k["denominator"] == 2 and k["status"] == "pass"
+    assert k["denominator"] == 3 and k["status"] == "pass"
     # K24: mean hours request -> decision over decided requests only; open requests counted separately
     t = datetime(2026, 5, 1, 6, 0)
     for i, hours in enumerate((2, 10)):

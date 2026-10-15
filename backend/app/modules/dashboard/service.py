@@ -198,13 +198,14 @@ def _rule(key: str, db: Session) -> Any:
 
 def build_audit(db: Session, principal, company_id: str) -> tuple[dict, str, datetime | None, str | None]:
     try:
-        from app.modules.auditagent.service import audit_flag_summary  # built by the audit-agent epic
+        from app.modules.auditagent.indicator import audit_flag_summary  # built by the audit-agent epic
 
         summary = audit_flag_summary(db, company_id)
         if summary:
             as_of = summary.get("evaluated_at") or summary.get("entered_at")
             when = datetime.fromisoformat(as_of) if isinstance(as_of, str) else as_of
-            return ({**summary, "note": bi("audit.note")}, summary.get("source", "owner-entered"), when or utcnow(), None)
+            if summary.get("state") != "not_yet_assessed":
+                return ({**summary, "note": bi("audit.note"), "sign_off": None}, summary.get("source", "owner-entered"), when or utcnow(), None)
     except ImportError:  # the audit agent epic is not installed yet: 'Not yet assessed'
         pass
     return ({"state": "not_yet_assessed", "state_label": bi("state.not_yet_assessed"), "last_updated_label": bi("audit.no_entry"), "note": bi("audit.note"), "sign_off": None}, "owner-entered", utcnow(), None)

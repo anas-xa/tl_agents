@@ -532,3 +532,11 @@ def test_bilingual_strings_present_and_banned_terms_absent():
         for lang in ("en", "ar"):
             assert not any(b.lower() in item[lang].lower() for b in ("audit certificate", "sent to a lawyer", "you owe", "you qualify", "you are exempt")), key
     assert STRINGS["status.rejected"]["ar"] == "مرفوضة من قِبلك" and STRINGS["qa.refusal_line"]["ar"].startswith("مصادرنا لا تدعم")
+
+
+def test_questions_about_my_company_are_own_position():
+    from app.modules.escalation.corpus import question_kind as classify_question
+
+    for q in ("Should my company elect Small Business Relief this year?", "Does our company need an audit?", "هل يجب على شركتي التسجيل؟"):
+        assert classify_question(q) == "own_position", q
+    assert classify_question("What is the VAT return deadline after the end of a tax period?") == "information"

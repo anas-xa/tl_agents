@@ -158,7 +158,7 @@ export default function DraftViewer() {
       <Panel title={t('calculation_basis')}>
         <ul>
           {Object.entries(pack.basis ?? {}).map(([k, v]) => (
-            <li key={k}><strong>{k}</strong>: <code dir="ltr" className="hint">{typeof v === 'string' ? v : JSON.stringify(v)}</code></li>
+            <li key={k}><strong>{k.replace(/_/g, ' ')}</strong>: <BasisValue name={k} value={v} /></li>
           ))}
         </ul>
         <h3>{t('assumptions')}</h3>
@@ -253,4 +253,31 @@ export default function DraftViewer() {
       </Dialog>
     </div>
   )
+}
+
+
+/** Readable calculation basis: rule references show id, version, instrument and confirmation status. */
+function BasisValue({ name, value }: { name: string; value: unknown }) {
+  if (typeof value === 'string' || typeof value === 'number') return <span>{String(value)}</span>
+  if (name === 'rule_refs' && value && typeof value === 'object') {
+    return (
+      <ul>
+        {Object.values(value as Record<string, { rule_id?: string; version?: string; instrument?: string; status?: string }>).map((r, i) => (
+          <li key={i}>
+            <bdi dir="ltr">{r.rule_id}</bdi> · {r.instrument} <span className="notice-tbc">({(r.status || '').replace(/_/g, ' ')})</span>
+          </li>
+        ))}
+      </ul>
+    )
+  }
+  if (value && typeof value === 'object') {
+    return (
+      <span>
+        {Object.entries(value as Record<string, unknown>)
+          .map(([k, v]) => `${k.replace(/_/g, ' ')}: ${typeof v === 'object' ? JSON.stringify(v) : String(v)}`)
+          .join(' · ')}
+      </span>
+    )
+  }
+  return null
 }

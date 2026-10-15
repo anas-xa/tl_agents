@@ -231,7 +231,8 @@ function PanelBody({ p, reload, canPrepare, canApprove, isOwner }: { p: PanelDat
     case 'audit_status':
       return (
         <div>
-          <p><Chip tone="info" icon="○">{d.state_label ? tx(d.state_label) : t('audit_not_assessed')}</Chip></p>
+          {d.badge && <p><Chip tone="info" icon="i">{tx(d.badge)}</Chip></p>}
+          <p><strong>{d.state_label ? tx(d.state_label) : t('audit_not_assessed')}</strong></p>
           {d.reason && <p>{typeof d.reason === 'string' ? d.reason : tx(d.reason)}</p>}
           <p className="helper">{d.last_updated_label ? tx(d.last_updated_label) : ''}</p>
           <p className="helper">{t('audit_note')}</p>

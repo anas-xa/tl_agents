@@ -5,7 +5,7 @@ import { useAuth } from '../../app/auth'
 import { Chip, Panel, Skeleton } from '../../components/ui'
 import { get } from '../../lib/api'
 import { daysLeftLabel, formatAED } from '../../lib/format'
-import { ctPeriods, lastClosedQuarter, type CalcView } from './types'
+import { ctPeriods, lastClosedQuarter, type CalcView, type PackSummary } from './types'
 
 interface Timing { last_check: { missing_items: { key: string }[] } | null }
 
@@ -20,11 +20,16 @@ export default function DashboardPanel() {
   const [ct, setCt] = useState<CalcView | null>(null)
   const [missing, setMissing] = useState<number | null>(null)
   const [failed, setFailed] = useState(false)
+  const [filed, setFiled] = useState<Set<string>>(new Set())
   useEffect(() => {
     if (!companyId) return
     const base = `/api/companies/${companyId}`
     get<CalcView>(`${base}/tax/vat/${vatPeriod}`).then(setVat).catch(() => setFailed(true))
     get<CalcView>(`${base}/tax/ct/${ctPeriod}`).then(setCt).catch(() => setFailed(true))
+    // A return the owner has recorded as filed is shown as filed, never as overdue.
+    get<{ packs: PackSummary[] }>(`${base}/drafts`)
+      .then((r) => setFiled(new Set(r.packs.filter((p) => !p.superseded && p.review_status === 'filed_user_confirmed').map((p) => `${p.tax_type}:${p.period_id}`))))
+      .catch(() => setFiled(new Set()))
     get<Timing>(`${base}/transactions/timing/vat/${vatPeriod}`).then((r) => setMissing(r.last_check ? r.last_check.missing_items.length : null)).catch(() => setMissing(null))
   }, [companyId, vatPeriod, ctPeriod])
 
@@ -39,7 +44,9 @@ export default function DashboardPanel() {
       <li>
         {label}: <Chip tone={c.state === 'current' ? 'ok' : c.state === 'blocked' ? 'info' : 'attention'}>{t(`state_${c.state}`)}</Chip>
         {figure !== null && <> · <bdi dir="ltr">{formatAED(figure, lang)}</bdi></>}
-        <div className="hint">{days !== null ? daysLeftLabel(days, lang) : t('days_left_placeholder')}</div>
+        <div className="hint">
+          {filed.has(`${c.tax_type}:${c.period_id}`) ? <Chip tone="ok">{t('st_filed_user_confirmed')}</Chip> : days !== null ? daysLeftLabel(days, lang) : t('days_left_placeholder')}
+        </div>
       </li>
     )
   }

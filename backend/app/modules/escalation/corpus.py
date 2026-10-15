@@ -38,7 +38,8 @@ OWN_POSITION_PATTERNS = (
     "my revenue", "my profit", "my turnover", "our revenue", "our turnover", "do i owe", "do we owe", "does my", "apply to my",
     "apply to me", "apply to us", "my situation", "my case", "what should i", "what should we", "do i have to pay", "do we have to pay",
     "should i register", "should we register", "am i required", "are we required", "is my company", "is our company", "my tax position",
-    "هل انا", "هل أنا", "هل شركتي", "دخلي", "ايراداتي", "إيراداتي", "هل يحق لي", "هل يمكنني خصم", "هل انا معفي", "هل أنا معفى", "ماذا علي ان افعل", "هل علي ان",
+    "my company", "our company", "my business", "our business", "should i", "should we", "should my", "should our",
+    "هل انا", "هل أنا", "هل شركتي", "دخلي", "ايراداتي", "إيراداتي", "هل يحق لي", "هل يمكنني خصم", "هل انا معفي", "هل أنا معفى", "ماذا علي ان افعل", "هل علي ان", "شركتي", "شركتنا", "هل يجب علي", "هل يجب على شركتي",
 )
 
 

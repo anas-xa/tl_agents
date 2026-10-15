@@ -3,17 +3,92 @@ from __future__ import annotations
 import hashlib
 import hmac
 import json
+import threading
 from datetime import datetime
 from typing import Any
 
-from sqlalchemy import desc, select
+from sqlalchemy import desc, event, select
 from sqlalchemy.orm import Session
 
 from app.core.errors import ValidationFailed
 from app.core.ids import new_id
 from app.core.settings import get_settings
 from app.core.time import utcnow
-from app.modules.audit.models import ActorIdentityMap, AuditEvent, AuditExport, AuditPending
+from app.modules.audit.models import ActorIdentityMap, AuditChainHead, AuditEvent, AuditExport, AuditPending
+
+_PENDING_KEY = "audit_pending_events"
+_LOCK_KEY = "audit_chain_locked"
+_CHAIN_LOCK = threading.Lock()
+
+
+def _payload_of(ev: AuditEvent) -> dict[str, Any]:
+    return {
+        "event_id": ev.event_id,
+        "occurred_at": ev.occurred_at.isoformat(),
+        "event_type": ev.event_type,
+        "category": ev.category,
+        "outcome": ev.outcome,
+        "reason_code": ev.reason_code,
+        "actor_key": ev.actor_key,
+        "actor_role": ev.actor_role,
+        "company_id": ev.company_id,
+        "licence_number": ev.licence_number,
+        "subject_type": ev.subject_type,
+        "subject_id": ev.subject_id,
+        "details": ev.details or {},
+        "language": ev.language,
+        "config_version": ev.config_version,
+        "ip_truncated": ev.ip_truncated,
+        "browser_family": ev.browser_family,
+        "log_class": ev.log_class,
+        "corrects_event_id": ev.corrects_event_id,
+    }
+
+
+@event.listens_for(Session, "before_commit")
+def _seal_pending_events(session: Session) -> None:
+    """Link this transaction's events into the chain under one lock: in-process lock plus the head row locked
+    FOR UPDATE (Postgres), so two concurrent commits can never read the same head."""
+    pending = [ev for ev in session.info.get(_PENDING_KEY, []) if ev in session]
+    if not pending:
+        return
+    if not session.info.get(_LOCK_KEY):
+        _CHAIN_LOCK.acquire()
+        session.info[_LOCK_KEY] = True
+    head = session.scalar(select(AuditChainHead).where(AuditChainHead.id == 1).with_for_update())
+    if head is None:
+        head = AuditChainHead(id=1, last_seq=0, last_hash=None)
+        session.add(head)
+    for ev in sorted(pending, key=lambda e: e.id or 0):
+        ev.seq = head.last_seq + 1
+        ev.prev_hash = head.last_hash
+        ev.hash = _compute_hash(ev.prev_hash, _payload_of(ev))
+        head.last_seq, head.last_hash = ev.seq, ev.hash
+    session.flush()
+    session.info[_PENDING_KEY] = []
+
+
+def _release(session: Session) -> None:
+    if session.info.pop(_LOCK_KEY, False):
+        _CHAIN_LOCK.release()
+
+
+@event.listens_for(Session, "after_commit")
+def _after_commit(session: Session) -> None:
+    _release(session)
+
+
+@event.listens_for(Session, "after_rollback")
+def _after_rollback(session: Session) -> None:
+    session.info[_PENDING_KEY] = []  # rolled-back events never reach the chain
+    _release(session)
+
+
+@event.listens_for(Session, "after_soft_rollback")
+def _after_soft_rollback(session: Session, previous_transaction) -> None:
+    session.info[_PENDING_KEY] = []
+    _release(session)
+
 
 EXPORT_REASON_CODES = ("regulator_request", "incident_review", "internal_audit", "legal_hold", "data_subject_request")
 
@@ -111,16 +186,13 @@ def record_event(
         "corrects_event_id": corrects_event_id,
     }
     try:
-        last = db.scalar(select(AuditEvent).order_by(desc(AuditEvent.id)).limit(1))
-        prev_hash = last.hash if last else None
         event = AuditEvent(
             **{k: v for k, v in payload.items() if k != "occurred_at"},
             occurred_at=datetime.fromisoformat(payload["occurred_at"]),
-            prev_hash=prev_hash,
-            hash=_compute_hash(prev_hash, payload),
         )
         db.add(event)
         db.flush()
+        db.info.setdefault(_PENDING_KEY, []).append(event)  # linked into the chain when the transaction commits
         return event
     except Exception as exc:  # pragma: no cover - exercised through the simulated failure hook
         db.rollback()
@@ -132,35 +204,17 @@ def record_event(
 
 
 def verify_chain(db: Session) -> tuple[bool, int]:
-    """Re-compute the hash chain; returns (intact, events_checked)."""
+    """Re-compute the hash chain in seal order; returns (intact, events_checked). Unsealed rows (seq is null)
+    belong to transactions that have not committed and are ignored."""
     prev_hash = None
     count = 0
-    for ev in db.scalars(select(AuditEvent).order_by(AuditEvent.id)):
-        payload = {
-            "event_id": ev.event_id,
-            "occurred_at": ev.occurred_at.isoformat(),
-            "event_type": ev.event_type,
-            "category": ev.category,
-            "outcome": ev.outcome,
-            "reason_code": ev.reason_code,
-            "actor_key": ev.actor_key,
-            "actor_role": ev.actor_role,
-            "company_id": ev.company_id,
-            "licence_number": ev.licence_number,
-            "subject_type": ev.subject_type,
-            "subject_id": ev.subject_id,
-            "details": ev.details or {},
-            "language": ev.language,
-            "config_version": ev.config_version,
-            "ip_truncated": ev.ip_truncated,
-            "browser_family": ev.browser_family,
-            "log_class": ev.log_class,
-            "corrects_event_id": ev.corrects_event_id,
-        }
-        if ev.prev_hash != prev_hash or ev.hash != _compute_hash(prev_hash, payload):
+    expected_seq = 1
+    for ev in db.scalars(select(AuditEvent).where(AuditEvent.seq.is_not(None)).order_by(AuditEvent.seq)):
+        if ev.seq != expected_seq or ev.prev_hash != prev_hash or ev.hash != _compute_hash(prev_hash, _payload_of(ev)):
             return False, count
         prev_hash = ev.hash
         count += 1
+        expected_seq += 1
     return True, count
 
 
