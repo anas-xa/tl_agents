@@ -14,7 +14,7 @@ from sqlalchemy.orm import Session
 
 from app.core.errors import Conflict, Forbidden, NotFound, SwitchedOff, ValidationFailed
 from app.core.ids import new_id
-from app.core.settings import BASE_DIR
+from app.core.settings import get_settings
 from app.core.time import to_dubai, utcnow
 from app.modules.access.service import Principal
 from app.modules.audit.service import record_event
@@ -41,7 +41,7 @@ from app.modules.datalinks.models import (
 from app.modules.datalinks.strings import s
 from app.modules.licences.models import Licence
 
-UPLOAD_ROOT = BASE_DIR / "data" / "uploads"
+UPLOAD_ROOT = Path(get_settings().upload_dir)
 
 
 # --- rights ----------------------------------------------------------------------------------------------------

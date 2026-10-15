@@ -9,6 +9,7 @@ import pytest
 _tmp = tempfile.mkdtemp(prefix="qeonix-test-")
 os.environ.setdefault("QEONIX_DATABASE_URL", f"sqlite:///{_tmp}/test.db")
 os.environ.setdefault("QEONIX_ENVIRONMENT", "test")
+os.environ.setdefault("QEONIX_UPLOAD_DIR", f"{_tmp}/uploads")
 os.environ.setdefault("QEONIX_SECRET_KEY", "test-secret")
 os.environ.setdefault("QEONIX_UAEPASS_ISSUER", "http://testserver/mock-uaepass")
 os.environ.setdefault("QEONIX_UAEPASS_REDIRECT_URI", "http://testserver/api/auth/callback")

@@ -23,6 +23,7 @@ class Settings(BaseSettings):
     environment: str = "dev"  # dev | test | pilot | production
     database_url: str = Field(default=f"sqlite:///{BASE_DIR / 'data' / 'qeonix.db'}")
     secret_key: str = "change-me-in-production"
+    upload_dir: str = Field(default=str(BASE_DIR / "data" / "uploads"))
     # Session rules (Q3, E1-S1): illustrative, configurable for production.
     session_idle_timeout_minutes: int = 15
     session_max_length_hours: int = 8

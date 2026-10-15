@@ -209,3 +209,6 @@ export function ctPeriods(today = new Date()): string[] {
 export function lastClosedQuarter(today = new Date()): string {
   return vatPeriods(today)[1]
 }
+
+/** Visually hidden live region (no shared class exists for it). */
+export const SR_ONLY = { position: 'absolute', width: 1, height: 1, overflow: 'hidden', clip: 'rect(0 0 0 0)', whiteSpace: 'nowrap' } as const
