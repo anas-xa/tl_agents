@@ -53,7 +53,7 @@ def _seed_config(db: Session) -> None:
     c(db, "escalation.turnaround.targets", {"standard": {"tax": 5, "audit": 7, "compliance": 5, "legal": None}, "deadline_near": {"tax": 2, "audit": 3, "compliance": 2, "legal": None}}, unit="working days", owner=PM, status="provisional", label="proposed by Qeonix product owner; estimates by pilot tax specialist lead and engagement manager; 'expected within N working days', never a guarantee; not shown on SC10 in Phase 1")
     c(db, "ops_alert.escalation_window_hours", 24, unit="hours", owner="Escalation operations (Qeonix)", status="to_be_confirmed", label="value not given in source; after the window the alert goes to the DET pilot manager queue")
     # E8-S2
-    c(db, "escalation.tax_specialist_path.enabled", True, owner="Product", status="to_be_confirmed", label="pilot ON for review-only work; OFF in production until the FTA position and firm agreements are recorded")
+    c(db, "escalation.tax_specialist_path.enabled", False, owner="Product", status="to_be_confirmed", label="OFF until the FTA position and specialist firm agreements are recorded (brief decision); the demo seed switches it on for the demo environment only")
     c(db, "escalation.lawyer_path.enabled", False, owner="Product", status="to_be_confirmed", label="OFF until Legal Affairs Department position and signed firm agreements are in the route-holder register")
     c(db, "sealed_notes.enabled", False, owner="Legal", status="to_be_confirmed", label="later phase; no placeholder built")
     c(db, "bulk_export.enabled", False, owner=TL, status="provisional", label="disabled by default")
@@ -206,6 +206,11 @@ def _seed_corpus(db: Session) -> None:
 
 
 def seed_demo(db: Session) -> None:
+    # Demo environment only: open the tax-specialist path so the escalation journey can be shown end to end.
+    from app.modules.config.service import get_config, set_config
+
+    if not get_config(db, "escalation.tax_specialist_path.enabled", False):
+        set_config(db, "escalation.tax_specialist_path.enabled", True, changed_by="demo-seed", change_reason="demo environment: tax-specialist path shown with fixture data", label="demo environment only; OFF by default until the FTA position is recorded")
     from app.demo import CO_ALNOOR, CO_BLUEDUNE, CO_GULFTECH, CO_SAFWA, PERSONA_UUIDS
     from app.modules.escalation.calendar import calendar_version_label
 

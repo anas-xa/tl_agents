@@ -183,7 +183,13 @@ def tax_point(txn: Any) -> tuple[date, str]:
 
 
 def dedup_key(txn: Any) -> tuple:
-    return ((txn.counterparty or "").strip().lower(), txn.original_amount_fils, txn.original_currency, (txn.invoice_number or "").strip().lower())
+    """vat-tp-v1 match key: counterparty, amount, currency, invoice number. Without an invoice number the
+    booking date is part of the key (bank-to-invoice tolerance not given), so recurring payments never merge."""
+    inv = (txn.invoice_number or "").strip().lower()
+    cp = (txn.counterparty or "").strip().lower()
+    if inv:  # same document from several sources; amounts and VAT are then compared (disagreement -> exception)
+        return (cp, inv, txn.original_currency)
+    return (cp, txn.original_amount_fils, txn.original_currency, "", txn.txn_date)
 
 
 PRECEDENCE = {"einvoice": 0, "ledger": 1, "bank": 2, "manual": 3}
@@ -200,7 +206,7 @@ def build_vat_lines(db: Session, rows: list[tuple[Any, Any]], rate_rule: RuleReg
         members.sort(key=lambda ct: PRECEDENCE.get(ct[1].source_kind, 9))
         doc_cls, doc = members[0]
         linked = [{"source_kind": t.source_kind, "source_system": t.source_system, "source_id": t.source_id, "pull_time": t.pull_time.isoformat(), "consent_id": t.consent_id} for _, t in members]
-        if key[3]:  # invoice number: check e-invoice vs ERP disagreement on amount or VAT
+        if len(key) == 3:  # invoice number: check e-invoice vs ERP disagreement on amount or VAT
             amounts = {(t.aed_amount_fils, t.vat_amount_stated_fils) for _, t in members if t.source_kind in ("einvoice", "ledger")}
             if len(amounts) > 1:
                 review.append({"classification_id": doc_cls.id, "date": doc.txn_date.isoformat(), "description": doc.description, "aed_amount_fils": doc.aed_amount_fils, "reason": "e-invoice and ERP disagree on amount or VAT: exception for owner/accountant review", "sources": linked})

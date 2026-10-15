@@ -148,13 +148,13 @@ def test_vat_tp_v1_tax_point_credit_note_special_sector_missing_fx_and_dedup(db)
     assert any("special sector" in r for r in reasons) and any("missing FX rate" in r for r in reasons)
     assert calc.state == "incomplete" and calc.state_reason.startswith("Excludes")
     # disagreement between e-invoice and ERP on amount -> exception, no silent winner
-    bk.ingest_transactions(db, CO_ALNOOR, [{"source_id": "e-9", "txn_date": "2025-05-12", "description": "Invoice INV-900 sale", "amount_fils": 500 * AED, "counterparty": "C9", "invoice_number": "INV-900"}], source_kind="einvoice", source_system="pint_ae")
+    bk.ingest_transactions(db, CO_ALNOOR, [{"source_id": "e-9", "txn_date": "2025-05-12", "description": "Invoice INV-900 sale", "amount_fils": 520 * AED, "counterparty": "C9", "invoice_number": "INV-900"}], source_kind="einvoice", source_system="pint_ae")
     _post_ledger(db, CO_ALNOOR, [{"source_id": "l-9", "txn_date": "2025-05-12", "description": "Invoice INV-900 sale", "amount_fils": 500 * AED, "counterparty": "C9", "invoice_number": "INV-900"}])
     bk.classify_pending(db, CO_ALNOOR, gate=False)
     for c in db.scalars(select(bk.Classification).where(bk.Classification.company_id == CO_ALNOOR, bk.Classification.status == "proposed")):
         bk.accept(db, CO_ALNOOR, c.id, khalid)
     calc = svc.calculate_vat(db, CO_ALNOOR, "2025-Q2")
-    assert any("possible duplicate" in e["reason"] or "disagree" in e["reason"] for e in calc.excluded_items)
+    assert any("disagree" in e["reason"] for e in calc.excluded_items) and not any(ln["counterparty"] == "C9" for ln in calc.outputs["lines"])
 
 
 def test_blocked_ct_for_tax_group_and_unclear_with_fixed_wording_and_escalation(client, db):
@@ -164,6 +164,7 @@ def test_blocked_ct_for_tax_group_and_unclear_with_fixed_wording_and_escalation(
     assert esc.trigger_id == "scope" and esc.status == ESCALATED_STATUS
     unclear = svc.calculate_ct(db, CO_GULFTECH, "FY2025")
     assert unclear.state == "blocked" and unclear.outputs["wording"] == "This company is outside the pilot's supported scope; a specialist will contact you"
+    db.commit()  # never hold a write on the test session while the app session writes (SQLite lock)
     sign_in(client, "khalid")
     r = client.get(f"/api/companies/{CO_SAFWA}/tax/ct/FY2025")
     assert r.status_code == 200 and r.json()["calculation"]["state"] == "blocked" and r.json()["calculation"]["can_approve"] is False

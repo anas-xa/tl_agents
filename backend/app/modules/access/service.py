@@ -30,7 +30,7 @@ OWNER_PERMS = {
     "bookkeeping.quarantine.decide", "docguard.review",  # E5: owner-only quarantine decisions (drafts, documents)
 }
 REMOTE_OWNER_PERMS = {"dashboard.view", "deadlines.view", "documents.view", "documents.download", "reminders.manage", "settings.manage", "subscription.view", "consent.view", "escalation.view", "escalation.open", "audit.view", "tax.view", "returns.view", "complaints.open", "taxprofile.edit"}
-DELEGATE_BASE_PERMS = {"dashboard.view", "deadlines.view", "documents.view", "documents.download", "consent.view", "tax.view", "tax.prepare", "tax.correct", "returns.view", "returns.send_for_approval", "audit.view", "escalation.open", "escalation.view", "uploads.manage", "links.manage", "portfolio.view", "settings.view_own", "taxprofile.edit", "subscription.view"}
+DELEGATE_BASE_PERMS = {"dashboard.view", "deadlines.view", "documents.view", "documents.download", "consent.view", "tax.view", "tax.prepare", "tax.correct", "returns.view", "returns.send_for_approval", "audit.view", "escalation.open", "escalation.view", "uploads.manage", "links.manage", "portfolio.view", "settings.view_own", "taxprofile.edit", "subscription.view", "complaints.open"}
 DELEGATE_RIGHT_PERMS = {"grant_consent": {"consent.grant", "consent.withdraw"}, "approve_submissions": {"returns.approve"}, "change_subscription": {"subscription.change"}}
 AUDITOR_PERMS = {"engagements.view", "audit.review", "audit.record_review", "audit.sign", "audit.view", "documents.view"}
 SPECIALIST_PERMS = {"cases.view_assigned", "cases.work", "documents.view"}

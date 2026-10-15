@@ -6,6 +6,7 @@ import { NAV } from '../features/registry'
 import { Skeleton } from '../components/ui'
 import { CompanySwitcher } from './CompanySwitcher'
 import { IdleTimeout } from './IdleTimeout'
+import { ResidencyStatement } from '../features/det/ResidencyStatement'
 
 export function LanguageToggle() {
   const { i18n } = useTranslation()
@@ -105,7 +106,7 @@ export function Shell() {
         ))}
       </nav>
       <footer className="footer">
-        <span className="residency">{t('shell.residency_neutral')}</span>
+        <span className="residency"><ResidencyStatement compact /></span>
         <span className="footer-links">
           <Link to="/help">{t('shell.help')}</Link> · <Link to="/privacy">{t('shell.privacy')}</Link> · <Link to="/accessibility">{t('shell.accessibility')}</Link>
         </span>

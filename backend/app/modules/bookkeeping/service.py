@@ -197,7 +197,12 @@ def ingest_transactions(db: Session, company_id: str, rows: list[dict], *, sourc
     """Normalise rows into transactions. Bank rows dated before the consent 'data from' date are not ingested."""
     created: list[Transaction] = []
     pull_time = pull_time or utcnow()
+
+    def _d(v: Any) -> date | None:
+        return v if (v is None or isinstance(v, date)) else date.fromisoformat(str(v))
+
     for row in rows:
+        row = {**row, **{k: _d(row.get(k)) for k in ("value_date", "supply_date", "invoice_date")}}
         txn_date = row["txn_date"] if isinstance(row["txn_date"], date) else date.fromisoformat(row["txn_date"])
         if source_kind == "bank" and data_from and txn_date < data_from:
             continue
