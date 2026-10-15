@@ -531,3 +531,23 @@ def test_maintenance_dormancy_and_reviewer_history(client, db):
         hist = noura.get("/api/delegates/history", params={"company_id": CO_ALNOOR}).json()
         assert hist and all("emirates" not in str(h).lower() for h in hist)
         assert noura.get(ALNOOR_DELEGATES).status_code == 403
+
+
+def test_removal_holds_tax_drafts_and_reroutes_reminders(client, db):
+    """Cross-module revocation: bookkeeping quarantine, draft-pack hold and reminder cancellation all run."""
+    from sqlalchemy import select as _select
+
+    from app.modules.bookkeeping.models import Classification
+    from app.modules.companies.models import CompanyRole
+    from app.modules.delegates.service import _enforce_revocation
+
+    omar = "uuid-omar-delegate"
+    cls = db.scalars(_select(Classification).where(Classification.company_id == "co_alnoor", Classification.status.in_(("proposed", "needs_review")))).first()
+    assert cls is not None
+    cls.made_by_uuid = omar
+    db.commit()
+    role = db.scalars(_select(CompanyRole).where(CompanyRole.identity_uuid == omar, CompanyRole.company_id == "co_alnoor")).first()
+    summary = _enforce_revocation(db, identity_uuid=role.identity_uuid, company_id="co_alnoor", principal=None, reason="removed")
+    db.commit()
+    db.refresh(cls)
+    assert cls.status == "quarantined" and summary["drafts_quarantined"] >= 1

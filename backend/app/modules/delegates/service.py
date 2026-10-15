@@ -569,18 +569,24 @@ def _delegate_role(db: Session, company_id: str, role_id: str) -> CompanyRole:
 # --- revocation enforcement and quarantine ---------------------------------------------------------
 
 
-def quarantine_touched_drafts(db: Session, *, identity_uuid: str, company_id: str, principal: Principal | None) -> list[QuarantinedDraft]:
-    """Every draft the delegate created/edited/submitted is quarantined (viewing never quarantines)."""
+def quarantine_touched_drafts(db: Session, *, identity_uuid: str, company_id: str, principal: Principal | None) -> tuple[list[QuarantinedDraft], int]:
+    """Every draft the delegate created/edited/submitted is quarantined (viewing never quarantines).
+
+    Returns the rows held in this module's register and the count held by owning modules in their own screens."""
     providers = list(TOUCHED_DRAFT_PROVIDERS)
     fn = _optional("app.modules.bookkeeping.service", "quarantine_drafts_for")
     if fn:
         providers.append(fn)
     rows: list[QuarantinedDraft] = []
+    held_elsewhere = 0
     for provider in providers:
         try:
             touched = provider(db, identity_uuid, company_id) or []
         except Exception:  # a provider failure must not stop revocation
             touched = []
+        if isinstance(touched, int):  # the provider held its own drafts (decided in its own screen); count only
+            held_elsewhere += touched
+            continue
         for item in touched:
             d = item if isinstance(item, dict) else {"draft_type": item[0], "draft_ref": item[1], "touched_action": item[2] if len(item) > 2 else "edited"}
             if d.get("touched_action", "edited") not in ("created", "edited", "submitted"):
@@ -592,7 +598,9 @@ def quarantine_touched_drafts(db: Session, *, identity_uuid: str, company_id: st
             db.flush()
             record_event(db, event_type="DRAFT_QUARANTINED", category="access", outcome="info", reason_code="ACCESS_REVOKED", actor_key=principal.actor_key if principal else None, company_id=company_id, subject_type=qd.draft_type, subject_id=qd.draft_ref, details={"quarantine_id": qd.id, "touched": qd.touched_action, "delegate_key": actor_key_for(identity_uuid)})
             rows.append(qd)
-    return rows
+    if held_elsewhere:
+        record_event(db, event_type="DRAFT_QUARANTINED", category="access", outcome="info", reason_code="ACCESS_REVOKED", actor_key=principal.actor_key if principal else None, company_id=company_id, details={"held_in_owning_module": held_elsewhere, "delegate_key": actor_key_for(identity_uuid)})
+    return rows, held_elsewhere
 
 
 def _enforce_revocation(db: Session, *, identity_uuid: str | None, company_id: str, principal: Principal | None, reason: str, quarantine: bool = True) -> dict:
@@ -615,7 +623,14 @@ def _enforce_revocation(db: Session, *, identity_uuid: str | None, company_id: s
     summary["jobs_aborted"] = int(fn(db, identity_uuid, company_id) or 0) if fn else 0
     record_event(db, event_type="JOB_ABORTED", category="access", outcome="info", reason_code="ACCESS_REVOKED", actor_key=actor, company_id=company_id, details={"count": summary["jobs_aborted"], "marker": "stopped by access change"})
     if quarantine:
-        summary["drafts_quarantined"] = len(quarantine_touched_drafts(db, identity_uuid=identity_uuid, company_id=company_id, principal=principal))
+        rows, held_elsewhere = quarantine_touched_drafts(db, identity_uuid=identity_uuid, company_id=company_id, principal=principal)
+        summary["drafts_quarantined"] = len(rows) + held_elsewhere
+    fn = _optional("app.modules.reminders.service", "on_access_lost")
+    if fn:
+        try:
+            fn(db, company_id, identity_uuid)  # their reminders are cancelled; the deadlines stay with the owner
+        except Exception:  # never let a reminder failure block revocation
+            record_event(db, event_type="REMINDER_REROUTE_FAILED", category="reminder", outcome="failed", company_id=company_id)
     db.flush()
     return summary
 
