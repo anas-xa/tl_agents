@@ -8,7 +8,7 @@ from fastapi import Depends, Request
 from sqlalchemy.orm import Session
 
 from app.core.db import get_db
-from app.core.errors import Unauthenticated
+from app.core.errors import PlatformError, Unauthenticated
 from app.modules.access.service import Principal, authorize, require_company_access, require_step_up
 from app.modules.audit.service import ensure_identity_mapping
 from app.modules.identity.models import Identity
@@ -67,10 +67,14 @@ def require(permission: str, *, company_param: str = "company_id") -> Callable:
 
     def _dep(request: Request, principal: Principal = Depends(get_principal), db: Session = Depends(get_db)) -> Principal:
         company_id = request.path_params.get(company_param) or request.query_params.get(company_param)
-        if company_id:
-            require_company_access(db, principal, company_id)
-        authorize(db, principal, permission, company_id=company_id)
-        require_step_up(db, principal, permission)
+        try:
+            if company_id:
+                require_company_access(db, principal, company_id)
+            authorize(db, principal, permission, company_id=company_id)
+            require_step_up(db, principal, permission)
+        except PlatformError:
+            db.commit()  # keep the ACCESS_REFUSED audit event before the refusal propagates
+            raise
         db.commit()
         return principal
 
@@ -79,7 +83,11 @@ def require(permission: str, *, company_param: str = "company_id") -> Callable:
 
 def require_staff(permission: str) -> Callable:
     def _dep(principal: Principal = Depends(get_principal), db: Session = Depends(get_db)) -> Principal:
-        authorize(db, principal, permission, company_id=None)
+        try:
+            authorize(db, principal, permission, company_id=None)
+        except PlatformError:
+            db.commit()  # keep the ACCESS_REFUSED audit event before the refusal propagates
+            raise
         db.commit()
         return principal
 

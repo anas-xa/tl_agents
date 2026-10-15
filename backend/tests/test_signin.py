@@ -205,3 +205,14 @@ def test_config_change_needs_second_approver_and_is_versioned(client):
     client.post("/api/auth/signout")
     res = sign_in(client, "priya")  # SOP2 now below the minimum
     assert not res["ok"] and res["query"]["reason"] == ["LEVEL_TOO_LOW"]
+
+
+def test_refused_cross_company_request_is_kept_in_audit_trail(client, db):
+    from app.modules.audit.models import AuditEvent
+
+    sign_in(client, "priya")
+    r = client.get("/api/companies/co_alnoor/dashboard")
+    assert r.status_code == 403
+    db.expire_all()
+    refused = db.scalars(select(AuditEvent).where(AuditEvent.event_type == "ACCESS_REFUSED", AuditEvent.company_id == "co_alnoor")).all()
+    assert refused and refused[-1].reason_code == "NOT_YOUR_COMPANY"
