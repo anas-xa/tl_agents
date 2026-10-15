@@ -14,6 +14,7 @@ RUN pip install --no-cache-dir -e .
 COPY --from=portal /frontend/dist /app/frontend/dist
 ENV QEONIX_SERVE_FRONTEND=true \
     QEONIX_SEED_DEMO_ON_START=true \
+    QEONIX_DEMO_MODE=true \
     QEONIX_STATIC_DIR=/app/frontend/dist \
     QEONIX_DATABASE_URL=sqlite:////data/qeonix.db \
     QEONIX_UPLOAD_DIR=/data/uploads \

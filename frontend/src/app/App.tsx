@@ -10,6 +10,7 @@ import '../features'
 const SignIn = lazy(() => import('../shell/SignIn'))
 const AuthComplete = lazy(() => import('../shell/AuthComplete'))
 const StaticPage = lazy(() => import('../shell/StaticPage'))
+const DemoGuide = lazy(() => import('../features/demo/DemoGuide'))
 
 function RequireAuth({ children }: { children: React.ReactNode }) {
   const { me, loading } = useAuth()
@@ -42,6 +43,7 @@ export default function App() {
             <Route path="/privacy" element={<StaticPage page="privacy" />} />
             <Route path="/accessibility" element={<StaticPage page="accessibility" />} />
             <Route path="/verify/:code" element={<StaticPage page="verify" />} />
+            <Route path="/demo" element={<DemoGuide />} />
             <Route element={<RequireAuth><Shell /></RequireAuth>}>
               {ROUTES.map((r) => (
                 <Route key={r.path} path={r.path} element={<Guarded route={r} />} />

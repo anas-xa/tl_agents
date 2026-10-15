@@ -66,7 +66,9 @@ def create_app() -> FastAPI:
 
     @app.get("/api/health")
     def health():
-        return {"status": "ok", "environment": settings.environment, "hosting_region": settings.hosting_region}
+        from app.modules.demo.api import demo_enabled
+
+        return {"status": "ok", "environment": settings.environment, "hosting_region": settings.hosting_region, "demo_mode": demo_enabled()}
 
     _register_routers(app)
     if settings.serve_frontend:

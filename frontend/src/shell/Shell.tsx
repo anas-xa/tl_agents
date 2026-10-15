@@ -7,6 +7,7 @@ import { Skeleton } from '../components/ui'
 import { CompanySwitcher } from './CompanySwitcher'
 import { IdleTimeout } from './IdleTimeout'
 import { ResidencyStatement } from '../features/det/ResidencyStatement'
+import { StoryBar } from '../features/demo/StoryBar'
 
 export function LanguageToggle() {
   const { i18n } = useTranslation()
@@ -75,6 +76,7 @@ export function Shell() {
           </div>
         </div>
       </header>
+      <StoryBar />
       {company && (
         <div className="acting-as" role="status">
           {t('shell.acting_as', { role: roleLabel, company: companyName })}

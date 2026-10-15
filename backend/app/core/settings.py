@@ -39,6 +39,8 @@ class Settings(BaseSettings):
     static_dir: str = Field(default=str(BASE_DIR.parent / "frontend" / "dist"))
     serve_frontend: bool = False
     seed_demo_on_start: bool = False
+    # Guided demo journey (/demo page, story bar, data reset). Never on in pilot or production.
+    demo_mode: bool = False
     # Hosting and residency guardrails (E1-S4): outbound hosts that are permitted (UAE-located).
     outbound_allowlist: list[str] = Field(default_factory=lambda: ["localhost", "127.0.0.1"])
     hosting_region: str = "uae-dubai-1"

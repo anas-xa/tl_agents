@@ -26,12 +26,13 @@ fi
 
 export QEONIX_SERVE_FRONTEND=true
 export QEONIX_SEED_DEMO_ON_START=true
+export QEONIX_DEMO_MODE=true
 export QEONIX_FRONTEND_BASE_URL="http://localhost:${PORT}"
 export QEONIX_UAEPASS_ISSUER="http://localhost:${PORT}/mock-uaepass"
 export QEONIX_UAEPASS_REDIRECT_URI="http://localhost:${PORT}/api/auth/callback"
 
 URL="http://localhost:${PORT}"
-echo "==> Starting on ${URL}  (press Ctrl+C to stop)"
-( sleep 4; command -v open >/dev/null && open "$URL" || command -v xdg-open >/dev/null && xdg-open "$URL" ) >/dev/null 2>&1 &
+echo "==> Starting on ${URL}  (guided demo: ${URL}/demo, press Ctrl+C to stop)"
+( sleep 4; command -v open >/dev/null && open "$URL/demo" || command -v xdg-open >/dev/null && xdg-open "$URL/demo" ) >/dev/null 2>&1 &
 cd backend
 exec .venv-local/bin/uvicorn app.main:app --host 127.0.0.1 --port "$PORT"

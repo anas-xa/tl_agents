@@ -6,12 +6,15 @@ import { Button, Message } from '../components/ui'
 import { post } from '../lib/api'
 import { explicitLanguage } from '../i18n'
 import { LanguageToggle } from './Shell'
+import { useStory } from '../features/demo/story'
+import '../features/demo/i18n'
 
 /** SC1 Sign-in. UAE PASS only; no fallback link (settled). */
 export default function SignIn() {
   const { t, i18n } = useTranslation()
   const [params] = useSearchParams()
   const { me, sessionEnded } = useAuth()
+  const demo = useStory()
   const nav = useNavigate()
   const reason = params.get('reason')
   const ref = params.get('ref')
@@ -89,6 +92,7 @@ export default function SignIn() {
             <p className="helper">{t('signin.helper')}</p>
           </>
         )}
+        {demo && <p className="demo-link"><a href="/demo">{t('demo:open_guide')}</a></p>}
         <p className="det-support">{t('shell.det_support')}</p>
         <footer className="signin-footer">
           <a href="/help">{t('shell.help')}</a> · <a href="/privacy">{t('shell.privacy')}</a> · <a href="/accessibility">{t('shell.accessibility')}</a>

@@ -52,7 +52,7 @@ default is off until the FTA position is recorded.
 
 **Easiest: one command.** You need [Python 3.12+](https://www.python.org/downloads/) and
 [Node.js 20+](https://nodejs.org/). The first run installs everything (a few minutes); later runs start in
-seconds. The app opens at http://localhost:8000 with the demo data loaded.
+seconds. The app opens the guided demo at http://localhost:8000/demo with the demo data loaded.
 
 ```bash
 # macOS / Linux
@@ -74,6 +74,34 @@ cd backend && uv venv .venv && . .venv/bin/activate && uv pip install -e ".[dev]
 python -m app.cli seed-demo && uvicorn app.main:app --reload --port 8000
 cd frontend && npm install && npm run dev      # http://localhost:5173
 ```
+
+## Guided demo journey
+
+Open **http://localhost:8000/demo** (the start scripts open it for you). It tells one story, *a year in the
+life of a Dubai licence holder*, in 12 chapters, in English or Arabic:
+
+| # | Chapter | Signed in as | Screen |
+|---|---------|--------------|--------|
+| 1 | The renewal brings a new service | Khalid, owner of Al Noor Trading | Welcome |
+| 2 | One place for every deadline | Khalid | Dashboard |
+| 3 | Data with consent, never by default | Khalid | Consent Centre |
+| 4 | The accountant prepares the return | Omar, delegate accountant | My companies |
+| 5 | The owner approves; nothing is filed automatically | Khalid | Return review |
+| 6 | Information, not advice, and a human when it matters | Khalid | Help |
+| 7 | The specialist works only on what was shared | Hassan, tax specialist | Case queue |
+| 8 | Audit readiness, honestly labelled | Dr. Layla, licensed auditor | Auditor workspace |
+| 9 | Documents anyone can verify | Khalid | Documents |
+| 10 | DET sees the whole pilot, never a company's books | Sara, DET administrator | DET dashboard |
+| 11 | Complaints are handled on the record | Ahmed, DET complaint handler | Requests and complaints |
+| 12 | Every action is on the record | Noura, compliance reviewer | Audit trail |
+
+Each chapter card says what to say, what to click and what to point out. **Start chapter** signs you in as
+that person through the sandbox UAE PASS and opens the right screen for the right company. Inside the app a
+**story bar** keeps your place: show the script, go to the next chapter, or back to all chapters.
+**Reset demo data** on the guide page reloads the story data so you can tell it again.
+
+The guide, the story bar and the reset exist only in demo mode (`QEONIX_DEMO_MODE=true`, set by the start
+scripts and the Docker image). They are never active in pilot or production.
 
 ## Tests and checks
 

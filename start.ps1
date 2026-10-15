@@ -29,11 +29,12 @@ if (-not (Test-Path "frontend\dist\index.html")) {
 
 $env:QEONIX_SERVE_FRONTEND = "true"
 $env:QEONIX_SEED_DEMO_ON_START = "true"
+$env:QEONIX_DEMO_MODE = "true"
 $env:QEONIX_FRONTEND_BASE_URL = "http://localhost:$Port"
 $env:QEONIX_UAEPASS_ISSUER = "http://localhost:$Port/mock-uaepass"
 $env:QEONIX_UAEPASS_REDIRECT_URI = "http://localhost:$Port/api/auth/callback"
 
-Write-Host "==> Starting on http://localhost:$Port  (press Ctrl+C to stop)"
-Start-Job { Start-Sleep 4; Start-Process "http://localhost:$using:Port" } | Out-Null
+Write-Host "==> Starting on http://localhost:$Port  (guided demo: http://localhost:$Port/demo, press Ctrl+C to stop)"
+Start-Job { Start-Sleep 4; Start-Process "http://localhost:$using:Port/demo" } | Out-Null
 Set-Location backend
 & .\.venv-local\Scripts\uvicorn.exe app.main:app --host 127.0.0.1 --port $Port
