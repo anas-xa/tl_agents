@@ -237,3 +237,23 @@ def test_explicit_language_choice_this_visit_overrides_profile(client, db):
     db.expire_all()
     assert db.get(Identity, "uuid-khalid-owner").language == "ar"
     assert client.get("/api/auth/me").json()["language"] == "ar"
+
+
+def test_one_port_mode_serves_portal_and_keeps_api(tmp_path, monkeypatch):
+    from fastapi.testclient import TestClient
+
+    from app.core.settings import get_settings
+    from app.main import create_app
+
+    (tmp_path / "assets").mkdir()
+    (tmp_path / "index.html").write_text("<html>portal</html>")
+    (tmp_path / "assets" / "app.js").write_text("console.log(1)")
+    monkeypatch.setattr(get_settings(), "serve_frontend", True)
+    monkeypatch.setattr(get_settings(), "static_dir", str(tmp_path))
+    with TestClient(create_app()) as c:
+        assert c.get("/").text == "<html>portal</html>"
+        assert c.get("/deadlines").text == "<html>portal</html>"  # client-side route falls back to index
+        assert c.get("/assets/app.js").text == "console.log(1)"
+        assert c.get("/api/health").json()["status"] == "ok"
+        assert c.get("/api/nope").status_code == 404
+        assert c.get("/../../etc/passwd").text == "<html>portal</html>"  # no path traversal

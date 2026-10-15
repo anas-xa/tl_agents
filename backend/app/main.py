@@ -38,6 +38,10 @@ async def lifespan(app: FastAPI):
 
         with SessionLocal() as db:
             seed_reference_data(db)
+            if get_settings().seed_demo_on_start:
+                from app.demo import seed_demo
+
+                seed_demo(db)
             db.commit()
     yield
 
@@ -65,7 +69,33 @@ def create_app() -> FastAPI:
         return {"status": "ok", "environment": settings.environment, "hosting_region": settings.hosting_region}
 
     _register_routers(app)
+    if settings.serve_frontend:
+        _mount_frontend(app, settings.static_dir)
     return app
+
+
+def _mount_frontend(app: FastAPI, static_dir: str) -> None:
+    """Serve the built portal from the API (one port). Unknown paths fall back to index.html (client routing)."""
+    from pathlib import Path
+
+    from fastapi.responses import FileResponse
+    from fastapi.staticfiles import StaticFiles
+
+    root = Path(static_dir)
+    index = root / "index.html"
+    if not index.exists():
+        return
+    if (root / "assets").is_dir():
+        app.mount("/assets", StaticFiles(directory=root / "assets"), name="assets")
+
+    @app.get("/{path:path}", include_in_schema=False)
+    def spa(path: str):
+        if path.startswith(("api/", "mock-uaepass/")):
+            return JSONResponse({"error": "NOT_FOUND"}, status_code=404)
+        candidate = (root / path).resolve()
+        if path and candidate.is_file() and root.resolve() in candidate.parents:
+            return FileResponse(candidate)
+        return FileResponse(index)
 
 
 app = create_app()

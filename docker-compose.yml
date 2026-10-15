@@ -1,20 +1,9 @@
 services:
-  backend:
-    build: ./backend
-    environment:
-      QEONIX_DATABASE_URL: sqlite:////data/qeonix.db
-      QEONIX_FRONTEND_BASE_URL: http://localhost:5173
-      QEONIX_UAEPASS_ISSUER: http://localhost:8000/mock-uaepass
-      QEONIX_UAEPASS_REDIRECT_URI: http://localhost:8000/api/auth/callback
-    volumes:
-      - qeonix-data:/data
+  qeonix:
+    build: .
     ports:
       - "8000:8000"
-  frontend:
-    build: ./frontend
-    ports:
-      - "5173:5173"
-    depends_on:
-      - backend
+    volumes:
+      - qeonix-data:/data
 volumes:
   qeonix-data:

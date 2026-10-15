@@ -26,3 +26,4 @@ frontend/.vite/
 # runtime data (database, uploaded files)
 backend/data/
 __pycache__/
+backend/.venv-local/

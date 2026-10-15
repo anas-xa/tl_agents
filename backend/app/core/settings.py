@@ -35,6 +35,10 @@ class Settings(BaseSettings):
     uaepass_redirect_uri: str = "http://localhost:8000/api/auth/callback"
     uaepass_jwks_url: str | None = None  # derived from issuer when unset
     frontend_base_url: str = "http://localhost:5173"
+    # One-port mode: when the built portal exists, the API serves it (set by the start scripts and Docker).
+    static_dir: str = Field(default=str(BASE_DIR.parent / "frontend" / "dist"))
+    serve_frontend: bool = False
+    seed_demo_on_start: bool = False
     # Hosting and residency guardrails (E1-S4): outbound hosts that are permitted (UAE-located).
     outbound_allowlist: list[str] = Field(default_factory=lambda: ["localhost", "127.0.0.1"])
     hosting_region: str = "uae-dubai-1"
