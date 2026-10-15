@@ -16,6 +16,11 @@ class Base(DeclarativeBase):
 
 def _make_engine(url: str):
     kwargs: dict = {"future": True}
+    if url.startswith("sqlite:///"):
+        # A fresh checkout has no data folder (it is git-ignored): create it so the first start works.
+        from pathlib import Path
+
+        Path(url.removeprefix("sqlite:///")).parent.mkdir(parents=True, exist_ok=True)
     if url.startswith("sqlite"):
         kwargs["connect_args"] = {"check_same_thread": False}
     engine = create_engine(url, **kwargs)
