@@ -3,10 +3,11 @@
 from __future__ import annotations
 
 import json
+from datetime import timedelta
 
 from sqlalchemy import select
 
-from app.demo import CO_ALNOOR, CO_BLUEDUNE, CO_SAFWA, PERSONA_UUIDS
+from app.demo import CO_ALNOOR, CO_BLUEDUNE, CO_SAFWA, PERSONA_UUIDS, demo_ct_year, demo_vat_quarters
 from app.modules.audit.models import AuditEvent
 from app.modules.bookkeeping import service as bk
 from app.modules.companies.models import CompanyRole as Role
@@ -17,6 +18,8 @@ from app.modules.tax.models import TaxEntityProfile
 from tests.conftest import sign_in
 
 D = f"/api/companies/{CO_ALNOOR}/drafts"
+QUARTERS, CT_FY = demo_vat_quarters(), demo_ct_year().period_id
+OPEN, PREV = QUARTERS.open.period_id, QUARTERS.previous.period_id
 
 
 class FakePrincipal:
@@ -31,6 +34,11 @@ class FakePrincipal:
         return self._roles[0].role
 
 
+def _open_vat(packs):
+    """The open demo quarter's VAT pack (the previous quarter's pack is filed and locked)."""
+    return next(p for p in packs if p["tax_type"] == "vat" and p["period_id"] == OPEN)
+
+
 def _packs(client):
     r = client.get(D)
     assert r.status_code == 200, r.text
@@ -40,7 +48,7 @@ def _packs(client):
 def test_demo_packs_carry_label_watermark_marks_and_sbr_indicator(client):
     sign_in(client, "khalid")
     packs = _packs(client)["packs"]
-    vat = next(p for p in packs if p["tax_type"] == "vat")
+    vat = _open_vat(packs)
     ct = next(p for p in packs if p["tax_type"] == "ct")
     assert vat["review_status"] == "under_review" and ct["review_status"] == "not_reviewed"
     body = client.get(f"{D}/{vat['id']}").json()
@@ -66,7 +74,7 @@ def test_banned_terms_checker():
 
 def test_role_bound_transitions_reasons_and_system_only_statuses(client):
     sign_in(client, "omar")
-    vat = next(p for p in _packs(client)["packs"] if p["tax_type"] == "vat")
+    vat = _open_vat(_packs(client)["packs"])
     url = f"{D}/{vat['id']}/record-review"
     r = client.post(url, json={"to_status": "superseded"})
     assert r.status_code == 403 and r.json()["error"] == "SYSTEM_ONLY_STATUS"
@@ -85,7 +93,7 @@ def test_role_bound_transitions_reasons_and_system_only_statuses(client):
 
 def test_self_edit_cannot_accept_and_owner_only_shows_no_independent_review(client, db):
     sign_in(client, "omar")
-    vat = next(p for p in _packs(client)["packs"] if p["tax_type"] == "vat")
+    vat = _open_vat(_packs(client)["packs"])
     r = client.post(f"{D}/{vat['id']}/edit", json={"key": "net_vat", "value_fils": 123_456, "reason_code": "nope"})
     assert r.status_code == 422 and r.json()["error"] == "REASON_REQUIRED"
     r = client.post(f"{D}/{vat['id']}/edit", json={"key": "net_vat", "value_fils": 123_456, "reason_code": "figure_corrected"})
@@ -100,7 +108,7 @@ def test_self_edit_cannot_accept_and_owner_only_shows_no_independent_review(clie
     r = client.post(f"{D}/{vat['id']}/record-review", json={"to_status": "accepted_by_reviewer"})
     assert r.status_code == 200 and r.json()["review_status"] == "accepted_by_reviewer"
     # a pack where only the owner ever acted
-    r = client.post(D, json={"tax_type": "ct", "period_id": "FY2025"})
+    r = client.post(D, json={"tax_type": "ct", "period_id": CT_FY})
     assert r.status_code == 200, r.text
     pid = r.json()["id"]
     assert client.post(f"{D}/{pid}/record-review", json={"to_status": "under_review"}).status_code == 200
@@ -110,8 +118,8 @@ def test_self_edit_cannot_accept_and_owner_only_shows_no_independent_review(clie
 
 def test_new_version_supersedes_and_approval_binds_to_one_version(client, db):
     sign_in(client, "khalid")
-    old = next(p for p in _packs(client)["packs"] if p["tax_type"] == "vat")
-    new = client.post(D, json={"tax_type": "vat", "period_id": "2026-Q2", "what_changed": "bank data pulled"}).json()
+    old = _open_vat(_packs(client)["packs"])
+    new = client.post(D, json={"tax_type": "vat", "period_id": OPEN, "what_changed": "bank data pulled"}).json()
     assert new["version"] == old["version"] + 1 and new["review_status"] == "not_reviewed"
     old_body = client.get(f"{D}/{old['id']}").json()
     assert old_body["superseded"] is True and old_body["review_status"] == "superseded" and old_body["can_approve"] is False and old_body["approve_disabled_reason"] == "Approval is only possible on the current version." and old_body["current_pack_id"] == new["id"]
@@ -133,9 +141,9 @@ def test_new_version_supersedes_and_approval_binds_to_one_version(client, db):
 
 def test_out_of_date_when_source_data_changes(client, db):
     sign_in(client, "khalid")
-    vat = next(p for p in _packs(client)["packs"] if p["tax_type"] == "vat")
+    vat = _open_vat(_packs(client)["packs"])
     khalid = FakePrincipal(PERSONA_UUIDS["khalid"], "Khalid", "owner", CO_ALNOOR, ["all"])
-    (t,) = bk.ingest_transactions(db, CO_ALNOOR, [{"source_id": "ood", "txn_date": "2026-05-15", "description": "Invoice INV-800 sale", "amount_fils": 100_000, "counterparty": "Z"}], source_kind="ledger", source_system="erp")
+    (t,) = bk.ingest_transactions(db, CO_ALNOOR, [{"source_id": "ood", "txn_date": (QUARTERS.open.start + timedelta(days=44)).isoformat(), "description": "Invoice INV-800 sale", "amount_fils": 100_000, "counterparty": "Z"}], source_kind="ledger", source_system="erp")
     bk.classify_pending(db, CO_ALNOOR, gate=False)
     bk.accept(db, CO_ALNOOR, db.scalar(select(bk.Classification).where(bk.Classification.txn_id == t.id)).id, khalid)
     db.commit()
@@ -149,13 +157,13 @@ def test_held_drafts_owner_only_one_at_a_time_keep_and_discard(client, db):
     db.commit()
     assert n == 2
     sign_in(client, "omar")
-    assert _packs(client)["packs"] == []
-    held = db.scalar(select(DraftPack).where(DraftPack.company_id == CO_ALNOOR, DraftPack.tax_type == "vat"))
+    assert [p["period_id"] for p in _packs(client)["packs"]] == [PREV]  # only the filed (locked) return is never held
+    held = db.scalar(select(DraftPack).where(DraftPack.company_id == CO_ALNOOR, DraftPack.tax_type == "vat", DraftPack.period_id == OPEN))
     assert client.get(f"{D}/{held.id}").status_code == 403
     client.cookies.clear()
     sign_in(client, "khalid")
     lst = _packs(client)
-    assert lst["held_count"] == 2 and all(p["on_hold"] and p["held_delegate"] == "Omar Haddad" for p in lst["packs"])
+    assert lst["held_count"] == 2 and all(p["on_hold"] and p["held_delegate"] == "Omar Haddad" for p in lst["packs"] if p["period_id"] != PREV)
     assert client.get(f"{D}/{held.id}/export", params={"lang": "en"}).status_code == 409
     r = client.post(f"{D}/{held.id}/hold-decision", json={"decision": "keep_changes", "reason_code": ""})
     assert r.status_code == 422
@@ -173,7 +181,7 @@ def test_held_drafts_owner_only_one_at_a_time_keep_and_discard(client, db):
 
 def test_export_changes_labels_only_and_is_logged(client, db):
     sign_in(client, "khalid")
-    vat = next(p for p in _packs(client)["packs"] if p["tax_type"] == "vat")
+    vat = _open_vat(_packs(client)["packs"])
     en = client.get(f"{D}/{vat['id']}/export", params={"lang": "en"}).json()
     ar = client.get(f"{D}/{vat['id']}/export", params={"lang": "ar"}).json()
     assert en["watermark"] != ar["watermark"] and en["draft_statement"] != ar["draft_statement"]
@@ -190,11 +198,11 @@ def vat_data(client, pid):
 
 def test_incomplete_data_lists_missing_items_and_blocked_generation(client, db):
     sign_in(client, "omar")
-    r = client.post(f"/api/companies/{CO_BLUEDUNE}/drafts", json={"tax_type": "vat", "period_id": "2026-Q3"})
+    r = client.post(f"/api/companies/{CO_BLUEDUNE}/drafts", json={"tax_type": "vat", "period_id": OPEN})
     assert r.status_code == 422 and r.json()["error"] == "DATA_INCOMPLETE"
     items = {m["key"]: m for m in r.json()["details"]["missing_items"]}
     assert "trn" in items and items["trn"]["owner_only"] is True and "all_reviewed" in items
-    chk = client.get(f"/api/companies/{CO_BLUEDUNE}/drafts/checklist/vat/2026-Q3").json()
+    chk = client.get(f"/api/companies/{CO_BLUEDUNE}/drafts/checklist/vat/{OPEN}").json()
     assert chk["passed"] is False and chk["heading"].startswith("We cannot prepare this draft yet.")
     client.cookies.clear()
     sign_in(client, "khalid")
@@ -202,7 +210,7 @@ def test_incomplete_data_lists_missing_items_and_blocked_generation(client, db):
     p.revenue_confirmed_at = p.updated_at
     p.revenue_fils = 1
     db.commit()
-    r = client.post(f"/api/companies/{CO_SAFWA}/drafts", json={"tax_type": "ct", "period_id": "FY2025"})
+    r = client.post(f"/api/companies/{CO_SAFWA}/drafts", json={"tax_type": "ct", "period_id": CT_FY})
     assert r.status_code == 422 and r.json()["error"] == "GENERATION_FAILED" and "outside the pilot's supported scope" in r.json()["details"]["cause"]
 
 
@@ -212,7 +220,7 @@ def test_remote_owner_and_k17_draft_ready(client):
     assert r.status_code == 403 and r.json()["message"] == "Draft returns are not available to you yet. You can view your dashboard and reminders."
     client.cookies.clear()
     sign_in(client, "khalid")
-    card = client.get(f"/api/companies/{CO_ALNOOR}/transactions/timing/vat/2026-Q2").json()
+    card = client.get(f"/api/companies/{CO_ALNOOR}/transactions/timing/vat/{OPEN}").json()
     assert card["draft_ready_at"] and card["data_complete_at"]
 
 

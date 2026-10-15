@@ -4,11 +4,11 @@ from __future__ import annotations
 
 import hashlib
 import json
-from datetime import date
+from datetime import date, timedelta
 
 from sqlalchemy import select
 
-from app.demo import CO_ALNOOR, CO_BLUEDUNE, CO_GULFTECH, PERSONA_UUIDS
+from app.demo import CO_ALNOOR, CO_BLUEDUNE, CO_GULFTECH, PERSONA_UUIDS, demo_vat_quarters
 from app.modules.audit.models import AuditEvent
 from app.modules.bookkeeping import service as svc
 from app.modules.bookkeeping.models import Classification, ReviewerLabel, ReviewRecord, Transaction
@@ -17,6 +17,13 @@ from app.modules.config.service import set_config
 from tests.conftest import sign_in
 
 TX = f"/api/companies/{CO_ALNOOR}/transactions"
+# Demo quarters (today-relative): previous and open fully reviewed, the open quarter holds the former delegate's
+# quarantined draft (access removed on the first day of its last month).
+QUARTERS = demo_vat_quarters()
+OPEN = QUARTERS.open.period_id
+REMOVED_ON = date(QUARTERS.open.start.year, QUARTERS.open.start.month + 2, 1)
+# K14 runs on a month before any demo transaction (the month before the previous demo quarter).
+K14_MONTH = (QUARTERS.previous.start - timedelta(days=1)).strftime("%Y-%m")
 
 
 class FakePrincipal:
@@ -129,7 +136,7 @@ def test_bulk_accept_only_for_items_matching_earlier_choices(client, db):
 def test_quarantined_drafts_owner_only_not_counted_until_decided(client, db):
     sign_in(client, "khalid")
     q = _rows(client, status="quarantined")["rows"]
-    assert q and q[0]["quarantine"]["made_by"] == "Former delegate (Demo data)" and q[0]["quarantine"]["access_removed_on"] == "2026-09-01"
+    assert q and q[0]["quarantine"]["made_by"] == "Former delegate (Demo data)" and q[0]["quarantine"]["access_removed_on"] == REMOVED_ON.isoformat()
     qid = q[0]["id"]
     assert client.post(f"{TX}/{qid}/accept").status_code == 409
     assert client.post(f"{TX}/bulk-accept", json={"ids": [qid], "confirm": False}).json()["count"] == 0
@@ -166,7 +173,7 @@ def test_k14_sample_sizes_census_too_small_and_cap():
     assert svc.k14_sample_size(10_000) == (200, "closed")
 
 
-def _ingest_month(db, company, n, month="2026-05", lang="en"):
+def _ingest_month(db, company, n, month=K14_MONTH, lang="en"):
     rows = []
     for i in range(n):
         desc = f"Transfer ref {1000 + i}" if lang == "en" else f"تحويل {1000 + i}"
@@ -178,28 +185,28 @@ def _ingest_month(db, company, n, month="2026-05", lang="en"):
 
 def test_k14_draw_is_deterministic_blind_and_labelled_a_correction_rate(client, db):
     _ingest_month(db, CO_BLUEDUNE, 40)
-    run1 = svc.draw_sample(db, CO_BLUEDUNE, "2026-05", "en")
-    run2 = svc.draw_sample(db, CO_BLUEDUNE, "2026-05", "en")
+    run1 = svc.draw_sample(db, CO_BLUEDUNE, K14_MONTH, "en")
+    run2 = svc.draw_sample(db, CO_BLUEDUNE, K14_MONTH, "en")
     assert run1.id == run2.id and run1.population_count == 40 and run1.n == 30 and run1.status == "closed"
-    assert run1.seed == hashlib.sha256(b"co_bluedune|2026-05|en|k14-v1").hexdigest() and run1.sampling_rule_version == "k14-v1"
-    ar = svc.draw_sample(db, CO_BLUEDUNE, "2026-05", "ar")
+    assert run1.seed == hashlib.sha256(f"co_bluedune|{K14_MONTH}|en|k14-v1".encode()).hexdigest() and run1.sampling_rule_version == "k14-v1"
+    ar = svc.draw_sample(db, CO_BLUEDUNE, K14_MONTH, "ar")
     assert ar.status == "too_small" and ar.n == 0 and ar.pooled_platform_level is True
     db.commit()
     sign_in(client, "omar")
-    for row in _rows(client, CO_BLUEDUNE, period="2026-05")["rows"]:
+    for row in _rows(client, CO_BLUEDUNE, period=K14_MONTH)["rows"]:
         assert "sample" not in json.dumps(row).lower()  # blind review: no sampled marker
-    rate = svc.k14_rate(db, CO_BLUEDUNE, "2026-05")
+    rate = svc.k14_rate(db, CO_BLUEDUNE, K14_MONTH)
     assert rate["label"] == "Correction rate on a labelled sample" and "accuracy" not in json.dumps(rate).lower()
     assert rate["measurable"] is False and rate["not_measurable_text"].startswith("Not yet measurable: 0 labelled")
     # late arrivals do not alter the closed run
-    svc.ingest_transactions(db, CO_BLUEDUNE, [{"source_id": "late", "txn_date": "2026-05-30", "description": "Late transfer", "amount_fils": 5}], source_kind="bank", source_system="demo_bank")
+    svc.ingest_transactions(db, CO_BLUEDUNE, [{"source_id": "late", "txn_date": f"{K14_MONTH}-30", "description": "Late transfer", "amount_fils": 5}], source_kind="bank", source_system="demo_bank")
     svc.classify_pending(db, CO_BLUEDUNE, gate=False)
-    assert svc.draw_sample(db, CO_BLUEDUNE, "2026-05", "en").sample_ids == run1.sample_ids
+    assert svc.draw_sample(db, CO_BLUEDUNE, K14_MONTH, "en").sample_ids == run1.sample_ids
 
 
 def test_k14_weighted_and_unweighted_rates_and_unsampled_count(client, db):
     _ingest_month(db, CO_BLUEDUNE, 40)
-    run = svc.draw_sample(db, CO_BLUEDUNE, "2026-05", "en")
+    run = svc.draw_sample(db, CO_BLUEDUNE, K14_MONTH, "en")
     db.commit()
     sign_in(client, "omar")
     sampled = list(run.sample_ids)
@@ -208,7 +215,7 @@ def test_k14_weighted_and_unweighted_rates_and_unsampled_count(client, db):
         cat = "purchases" if i < 10 else "sales_revenue"
         assert client.post(f"/api/companies/{CO_BLUEDUNE}/transactions/{cid}/correct", json={"category": cat, "vat_code": "SR"}).status_code == 200
     assert client.post(f"/api/companies/{CO_BLUEDUNE}/transactions/{unsampled[0]}/correct", json={"category": "rent", "vat_code": "SR"}).status_code == 200
-    r = client.get(f"/api/companies/{CO_BLUEDUNE}/bookkeeping/samples", params={"month": "2026-05"})
+    r = client.get(f"/api/companies/{CO_BLUEDUNE}/bookkeeping/samples", params={"month": K14_MONTH})
     assert r.status_code == 200, r.text
     rate = r.json()
     assert rate["measurable"] is True and rate["labelled_count"] == 30 and rate["corrected_count"] == 30  # all were no-basis -> corrected
@@ -217,11 +224,11 @@ def test_k14_weighted_and_unweighted_rates_and_unsampled_count(client, db):
     assert all("seed" not in s for s in rate["strata"])  # company view hides the seed
     client.cookies.clear()
     sign_in(client, "hassan")  # tax specialist: staff cases.queue.tax
-    r = client.get(f"/api/companies/{CO_BLUEDUNE}/bookkeeping/samples", params={"month": "2026-05"})
+    r = client.get(f"/api/companies/{CO_BLUEDUNE}/bookkeeping/samples", params={"month": K14_MONTH})
     assert r.status_code == 200 and r.json()["strata"][0]["seed"]
     client.cookies.clear()
     sign_in(client, "noura")
-    assert client.get(f"/api/companies/{CO_BLUEDUNE}/bookkeeping/samples", params={"month": "2026-05"}).status_code == 403
+    assert client.get(f"/api/companies/{CO_BLUEDUNE}/bookkeeping/samples", params={"month": K14_MONTH}).status_code == 403
 
 
 def test_k15_material_change_rule():
@@ -232,43 +239,47 @@ def test_k15_material_change_rule():
 
 def test_k17_data_complete_supersedes_and_keeps_history(client, db):
     sign_in(client, "khalid")
-    card = client.get(f"{TX}/timing/vat/2026-Q2").json()
+    card = client.get(f"{TX}/timing/vat/{OPEN}").json()
     assert card["data_complete_at"] and card["draft_ready_at"] and card["elapsed_seconds"] is not None
     first = card["data_complete_at"]
-    svc.ingest_transactions(db, CO_ALNOOR, [{"source_id": "k17-new", "txn_date": "2026-06-20", "description": "Unknown thing 77", "amount_fils": -900}], source_kind="manual", source_system="t")
+    svc.ingest_transactions(db, CO_ALNOOR, [{"source_id": "k17-new", "txn_date": (QUARTERS.open.end - timedelta(days=10)).isoformat(), "description": "Unknown thing 77", "amount_fils": -900}], source_kind="manual", source_system="t")
     svc.classify_pending(db, CO_ALNOOR, gate=False)
     db.commit()
-    r = client.post(f"{TX}/timing/vat/2026-Q2/evaluate").json()
+    r = client.post(f"{TX}/timing/vat/{OPEN}/evaluate").json()
     assert r["passed"] is False and "all_reviewed" in [m["key"] for m in r["missing_items"]] and r["card"]["data_complete_at"] is None
     cls = db.scalar(select(Classification).where(Classification.company_id == CO_ALNOOR, Classification.status == "needs_review").join(Transaction, Transaction.id == Classification.txn_id).where(Transaction.source_id == "k17-new"))
     assert client.post(f"{TX}/{cls.id}/reject").status_code == 200
-    r = client.post(f"{TX}/timing/vat/2026-Q2/evaluate").json()
+    r = client.post(f"{TX}/timing/vat/{OPEN}/evaluate").json()
     assert r["passed"] is True and r["card"]["data_complete_at"] and r["card"]["data_complete_at"] != first
     assert [h["superseded"] for h in r["card"]["history"]] == [True, False]
 
 
 def test_k17_missing_items_name_who_and_action_and_blocked_only_when_configured(db):
-    check = svc.evaluate_completeness(db, CO_BLUEDUNE, "vat", "2026-Q3", facts={"trn": False})
+    check = svc.evaluate_completeness(db, CO_BLUEDUNE, "vat", OPEN, facts={"trn": False})
     keys = {m["key"]: m for m in check.missing_items}
     assert "trn" in keys and keys["trn"]["owner_only"] is True and keys["trn"]["action"] and keys["trn"]["why"]
     assert check.passed is False and check.blocked_missing_data is False and check.version == "dc-v1"
     set_config(db, "bookkeeping.dc_v1.deadline_minus_days", 5, changed_by="test")
-    check = svc.evaluate_completeness(db, CO_BLUEDUNE, "vat", "2026-Q3", facts={"trn": False}, deadline=date.today())
+    check = svc.evaluate_completeness(db, CO_BLUEDUNE, "vat", OPEN, facts={"trn": False}, deadline=date.today())
     assert check.blocked_missing_data is True
 
 
 def test_pre_consent_rows_not_ingested_and_fx_stored_with_carried_flag(db):
+    # FX rates are seeded daily from the start of the previous demo quarter (weekend rates carried)
+    data_from = QUARTERS.previous.start
+    sunday = data_from + timedelta(days=(6 - data_from.weekday()) % 7 or 7)
+    monday = sunday + timedelta(days=1)
     rows = [
-        {"source_id": "pc-1", "txn_date": "2026-03-30", "description": "before data from", "amount_fils": 100},
-        {"source_id": "pc-2", "txn_date": "2026-04-06", "description": "USD supplier", "amount_fils": -10_000, "currency": "USD"},
-        {"source_id": "pc-3", "txn_date": "2026-04-05", "description": "USD weekend", "amount_fils": -10_000, "currency": "USD"},
-        {"source_id": "pc-4", "txn_date": "2026-04-07", "description": "CHF no rate", "amount_fils": -10_000, "currency": "CHF"},
+        {"source_id": "pc-1", "txn_date": (data_from - timedelta(days=2)).isoformat(), "description": "before data from", "amount_fils": 100},
+        {"source_id": "pc-2", "txn_date": monday.isoformat(), "description": "USD supplier", "amount_fils": -10_000, "currency": "USD"},
+        {"source_id": "pc-3", "txn_date": sunday.isoformat(), "description": "USD weekend", "amount_fils": -10_000, "currency": "USD"},
+        {"source_id": "pc-4", "txn_date": (monday + timedelta(days=1)).isoformat(), "description": "CHF no rate", "amount_fils": -10_000, "currency": "CHF"},
     ]
-    created = svc.ingest_transactions(db, CO_GULFTECH, rows, source_kind="bank", source_system="demo_bank", consent_id="c1", data_from=date(2026, 4, 1))
+    created = svc.ingest_transactions(db, CO_GULFTECH, rows, source_kind="bank", source_system="demo_bank", consent_id="c1", data_from=data_from)
     by = {t.source_id: t for t in created}
     assert "pc-1" not in by and len(created) == 3
-    assert by["pc-2"].original_currency == "USD" and by["pc-2"].original_amount_fils == 10_000 and by["pc-2"].aed_amount_fils == 36725 and by["pc-2"].fx_rate_source == "CBUAE published rate" and by["pc-2"].fx_rate_date == date(2026, 4, 6)
-    assert by["pc-3"].fx_carried is True  # Sunday 5 Apr 2026 is a weekend row flagged carried
+    assert by["pc-2"].original_currency == "USD" and by["pc-2"].original_amount_fils == 10_000 and by["pc-2"].aed_amount_fils == 36725 and by["pc-2"].fx_rate_source == "CBUAE published rate" and by["pc-2"].fx_rate_date == monday
+    assert by["pc-3"].fx_carried is True  # a Sunday is a weekend row flagged carried
     assert by["pc-4"].fx_missing is True and by["pc-4"].consent_id == "c1" and by["pc-4"].pull_time
 
 

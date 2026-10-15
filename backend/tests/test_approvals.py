@@ -11,7 +11,15 @@ from sqlalchemy import select
 
 from app.core.errors import Conflict, Forbidden, SwitchedOff
 from app.core.time import dubai_today, utcnow
-from app.demo import CO_ALNOOR, CO_BLUEDUNE, CO_GULFTECH, CO_SAFWA, PERSONA_UUIDS
+from app.demo import (
+    CO_ALNOOR,
+    CO_BLUEDUNE,
+    CO_GULFTECH,
+    CO_SAFWA,
+    PERSONA_UUIDS,
+    demo_ct_year,
+    demo_vat_quarters,
+)
 from app.modules.access.service import Principal
 from app.modules.approvals import adapter, monitoring
 from app.modules.approvals import service as svc
@@ -31,6 +39,8 @@ from app.modules.config.service import get_config, set_config
 from app.modules.drafts.models import DraftPack
 from tests.conftest import sign_in
 
+# Demo periods (today-relative): the open quarter carries the open request, the previous one the filed return.
+OPEN, PREV, CT_FY = demo_vat_quarters().open.period_id, demo_vat_quarters().previous.period_id, demo_ct_year().period_id
 A = f"/api/companies/{CO_ALNOOR}/approvals"
 G = f"/api/companies/{CO_ALNOOR}/delegate-grants"
 
@@ -68,11 +78,11 @@ def test_demo_states_and_request_contents(client, db):
     body = client.get(A).json()
     assert body["role"] == "owner" and body["flow_enabled"] is True and body["phase_b_on"] is False
     req = _open(client)
-    assert req["return_type"] == "vat" and req["period_id"] == "2026-Q2" and req["submission_type"] == "return_pack"
+    assert req["return_type"] == "vat" and req["period_id"] == OPEN and req["submission_type"] == "return_pack"
     assert req["due_date"] and req["amounts"] and req["rule_version"] and req["ai_label"] == "AI-prepared draft, not yet signed off"
     assert req["human_review_label"]["en"] == "Under review" and req["entitlement"] == {"allowed": True, "reason_code": None}
     assert req["filing"]["state"] == "not_filed" and req["filing"]["submit_control_rendered"] is False and req["filing"]["read_back"] == "Not available"
-    hist = next(r for r in body["requests"] if r["period_id"] == "2026-Q1")
+    hist = next(r for r in body["requests"] if r["period_id"] == PREV)
     assert hist["approved_by"]["display_role"] == "Owner" and hist["filing"]["state"] == "filed_outside_self_declared"
     assert hist["filing"]["label"]["en"] == "Filed outside platform (self-declared)" and hist["filing"]["not_verified_by_authority"] is True
     assert "Not verified by the tax authority" in hist["filing"]["banner"] and hist["filing"]["submitted_by"] == "Khalid Al Mansoori"
@@ -120,7 +130,7 @@ def test_approval_binds_to_hash_records_evidence_and_voids_on_change(client, db)
 def test_new_version_supersedes_request_and_raises_new_one_informed_decision(client, db):
     sign_in(client, "khalid")
     old = _open(client)
-    new_pack = client.post(f"/api/companies/{CO_ALNOOR}/drafts", json={"tax_type": "vat", "period_id": "2026-Q2", "what_changed": "bank data pulled"}).json()
+    new_pack = client.post(f"/api/companies/{CO_ALNOOR}/drafts", json={"tax_type": "vat", "period_id": OPEN, "what_changed": "bank data pulled"}).json()
     body = client.get(A).json()
     old_now = next(r for r in body["requests"] if r["request_id"] == old["request_id"])
     assert old_now["status"] == "superseded" and old_now["superseded_by"]
@@ -288,7 +298,7 @@ def test_delegate_refused_while_switch_off(client, db):
     assert req["entitlement"] == {"allowed": False, "reason_code": "RIGHT_SWITCHED_OFF"}
     r = _approve(client, req)
     assert r.status_code == 403 and r.json()["error"] == "RIGHT_SWITCHED_OFF"
-    r = client.post(G, json={"delegate_uuid": PERSONA_UUIDS["omar"], "tax_types": ["vat"], "period_id": "2026-Q2"})
+    r = client.post(G, json={"delegate_uuid": PERSONA_UUIDS["omar"], "tax_types": ["vat"], "period_id": OPEN})
     assert r.status_code == 403 and r.json()["error"] == "NOT_OWNER_DELEGATE" and r.json()["message"] == "Only the owner can give approval rights."
     mine = client.get(G).json()
     assert mine["locked"] is True and mine["grants"] == [] and mine["phase_b_off_text"]["en"].startswith("Approval rights are not available yet.")
@@ -296,7 +306,7 @@ def test_delegate_refused_while_switch_off(client, db):
     assert f.status_code == 403 and f.json()["error"] == "NO_FILING_RIGHT"
     client.cookies.clear()
     sign_in(client, "khalid")
-    r = client.post(G, json={"delegate_uuid": PERSONA_UUIDS["omar"], "tax_types": ["vat"], "period_id": "2026-Q2"})
+    r = client.post(G, json={"delegate_uuid": PERSONA_UUIDS["omar"], "tax_types": ["vat"], "period_id": OPEN})
     assert r.status_code == 403 and r.json()["error"] == "RIGHT_SWITCHED_OFF"
     assert _events(db, "ENTITLEMENT_REFUSED")
 
@@ -316,16 +326,16 @@ def test_delegate_grant_validation_scope_and_revocation_when_switch_on(client, d
         ({"end_date": (today + timedelta(days=60)).isoformat()}, "GRANT_END_AFTER_CAP"),
     ]
     for extra, code in bad:
-        r = client.post(G, json={"delegate_uuid": PERSONA_UUIDS["omar"], "tax_types": ["vat"], "period_id": "2026-Q2"} | extra)
+        r = client.post(G, json={"delegate_uuid": PERSONA_UUIDS["omar"], "tax_types": ["vat"], "period_id": OPEN} | extra)
         assert r.status_code == 422 and r.json()["error"] == code, (code, r.text)
     set_config(db, "approval.delegate_grant.max_days", 10, changed_by="test")
     db.commit()
-    r = client.post(G, json={"delegate_uuid": PERSONA_UUIDS["omar"], "tax_types": ["vat"], "period_id": "2026-Q2", "end_date": (today + timedelta(days=20)).isoformat()})
+    r = client.post(G, json={"delegate_uuid": PERSONA_UUIDS["omar"], "tax_types": ["vat"], "period_id": OPEN, "end_date": (today + timedelta(days=20)).isoformat()})
     assert r.status_code == 422 and r.json()["error"] == "GRANT_TOO_LONG"
     set_config(db, "approval.delegate_grant.max_days", 365, changed_by="test")
     db.commit()
     # out-of-scope grant (corporate tax only) does not let the delegate approve a VAT return
-    ct = client.post(G, json={"delegate_uuid": PERSONA_UUIDS["omar"], "tax_types": ["ct"], "period_id": "FY2025"})
+    ct = client.post(G, json={"delegate_uuid": PERSONA_UUIDS["omar"], "tax_types": ["ct"], "period_id": CT_FY})
     assert ct.status_code == 200, ct.text
     assert ct.json()["step_up_proof"]["assurance_level"] == "SOP3"
     assert ct.json()["confirmation_wording_version"] == "grw-v1" and ct.json()["authority_basis"]
@@ -336,7 +346,7 @@ def test_delegate_grant_validation_scope_and_revocation_when_switch_on(client, d
     assert r.status_code == 403 and r.json()["error"] == "NO_APPROVAL_RIGHT"
     client.cookies.clear()
     sign_in(client, "khalid")
-    vat = client.post(G, json={"delegate_uuid": PERSONA_UUIDS["omar"], "tax_types": ["vat"], "period_id": "2026-Q2"}).json()
+    vat = client.post(G, json={"delegate_uuid": PERSONA_UUIDS["omar"], "tax_types": ["vat"], "period_id": OPEN}).json()
     client.cookies.clear()
     sign_in(client, "omar")
     r = _approve(client, req)
@@ -433,7 +443,7 @@ def test_adapter_refuses_without_approval_switch_or_live_row(client, db, monkeyp
     with pytest.raises(Conflict):
         adapter.submit(db, company_id=CO_ALNOOR, pack_id=req["pack_id"], approval_id=None, caller_type="agent")
     with pytest.raises(Conflict):
-        adapter.submit(db, company_id=CO_ALNOOR, pack_id=req["pack_id"], approval_id="APV-DEMO-ALNOOR-Q1", caller_type="job")  # another version
+        adapter.submit(db, company_id=CO_ALNOOR, pack_id=req["pack_id"], approval_id="APV-DEMO-ALNOOR-PREV", caller_type="job")  # another version
     db.commit()
     assert _approve(client, req).status_code == 200
     r = client.post(f"{A}/{req['request_id']}/submit")
@@ -486,8 +496,8 @@ def test_k23_no_data_pass_breach_and_pilot_stop(client, db):
     k = monitoring.k23(db)
     assert k["denominator"] == 1 and k["display"] == "100.0%" and k["status"] == "pass" and k["self_reported_count"] == 1 and k["read_back"] == "Not available"
     # a submission recorded without a valid approval (detective control)
-    q1 = db.scalar(select(ManualFilingRecord).where(ManualFilingRecord.id == "MFR-DEMO-ALNOOR-Q1"))
-    db.add(ManualFilingRecord(company_id=CO_ALNOOR, pack_id=q1.pack_id, approval_id=None, data_version_hash=q1.data_version_hash, tax_type="vat", state="filed_outside_self_declared", filed_date=dubai_today(), self_filed_confirmed=True))
+    prev = db.scalar(select(ManualFilingRecord).where(ManualFilingRecord.id == "MFR-DEMO-ALNOOR-PREV"))
+    db.add(ManualFilingRecord(company_id=CO_ALNOOR, pack_id=prev.pack_id, approval_id=None, data_version_hash=prev.data_version_hash, tax_type="vat", state="filed_outside_self_declared", filed_date=dubai_today(), self_filed_confirmed=True))
     db.commit()
     out = monitoring.run_compliance_job(db)
     db.commit()
@@ -529,7 +539,7 @@ def test_k23_grant_revoked_later_still_valid_and_k24_maths(client, db):
     set_config(db, "identity.approval_min_assurance_level", "SOP2", changed_by="test")
     db.commit()
     owner = _principal(PERSONA_UUIDS["khalid"], "Khalid Al Mansoori")
-    g = svc.create_grant(db, owner, CO_ALNOOR, delegate_uuid=PERSONA_UUIDS["omar"], tax_types=["vat"], period_id="2026-Q2")
+    g = svc.create_grant(db, owner, CO_ALNOOR, delegate_uuid=PERSONA_UUIDS["omar"], tax_types=["vat"], period_id=OPEN)
     db.commit()
     omar = _principal(PERSONA_UUIDS["omar"], "Omar Haddad", role="delegate", level="SOP2")
     req = db.scalar(select(ApprovalRequest).where(ApprovalRequest.company_id == CO_ALNOOR, ApprovalRequest.status == "open"))
@@ -557,7 +567,7 @@ def test_k23_grant_revoked_later_still_valid_and_k24_maths(client, db):
 
 def test_records_read_only_and_banned_wording(client, db):
     sign_in(client, "khalid")
-    r = client.delete(f"{A}/records/APV-DEMO-ALNOOR-Q1")
+    r = client.delete(f"{A}/records/APV-DEMO-ALNOOR-PREV")
     assert r.status_code == 403 and r.json()["message"] == "Records cannot be edited. This attempt has been logged."
     assert _events(db, "EDIT_DELETE_OVERRIDE_ATTEMPT_REFUSED")
     body = client.get(A).json()

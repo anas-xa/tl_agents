@@ -9,7 +9,7 @@ from conftest import sign_in
 
 from app.core.errors import NotFound, ValidationFailed
 from app.core.time import dubai_today, utcnow
-from app.demo import CO_ALNOOR, CO_BLUEDUNE, CO_GULFTECH, CO_SAFWA, PERSONA_UUIDS
+from app.demo import CO_ALNOOR, CO_BLUEDUNE, CO_GULFTECH, CO_SAFWA, PERSONA_UUIDS, demo_vat_quarters
 from app.modules.config.service import set_config
 from app.modules.reminders import service as rs
 from app.modules.reminders.models import K30Event, Reminder, ReminderOutbox, ReminderTemplate
@@ -129,12 +129,13 @@ def test_slots_catch_up_and_overdue_notice(db):
 def test_k30_cancellation_when_task_completed(client, db):
     sign_in(client, "khalid")
     items = client.get(f"/api/companies/{CO_ALNOOR}/obligations").json()["items"]
-    vat = next(i for i in items if i["obligation_type"] == "vat_return" and i["period_end"] == "2026-09-30")
+    open_q = demo_vat_quarters().open  # Al Noor's open demo quarter (ready for owner review)
+    vat = next(i for i in items if i["obligation_type"] == "vat_return" and i["period_end"] == open_q.end.isoformat())
     client.get(f"/api/companies/{CO_ALNOOR}/reminders")
     db.expire_all()
     planned = db.query(Reminder).filter_by(deadline_id=vat["obligation_id"], status="planned").count()
     assert planned > 0
-    r = client.post(f"/api/companies/{CO_ALNOOR}/obligations/{vat['obligation_id']}/filed-evidence", json={"source": "receipt", "filing_reference": "ACK-9", "filed_date": "2026-10-12"})
+    r = client.post(f"/api/companies/{CO_ALNOOR}/obligations/{vat['obligation_id']}/filed-evidence", json={"source": "receipt", "filing_reference": "ACK-9", "filed_date": dubai_today().isoformat()})
     assert r.status_code == 200
     db.expire_all()
     assert db.query(Reminder).filter_by(deadline_id=vat["obligation_id"], status="planned").count() == 0

@@ -8,9 +8,13 @@ import pytest
 from conftest import sign_in
 
 from app.core.time import dubai_today
-from app.demo import CO_ALNOOR, CO_BLUEDUNE, CO_GULFTECH, CO_SAFWA
+from app.demo import CO_ALNOOR, CO_BLUEDUNE, CO_GULFTECH, CO_SAFWA, demo_ct_year, demo_vat_quarters
 from app.modules.deadlines import service as dl
 from app.modules.deadlines.models import CalendarEntry, CalendarVersion, Obligation, RecalcCheckpoint
+
+# Demo periods (today-relative): Al Noor enters the open quarter in its tax profile; CT runs on the demo year.
+QUARTERS, CT = demo_vat_quarters(), demo_ct_year()
+OPEN, CURRENT = QUARTERS.open, QUARTERS.current
 
 CONTRACT_FIELDS = {"obligation_id", "company_id", "licence_number", "obligation_type", "period_start", "period_end", "due_date", "due_date_source", "date_status", "is_stated", "rule_version", "calendar_version", "readiness", "missing_items", "updated_at"}
 
@@ -77,11 +81,13 @@ def test_owner_sees_contract_rows_with_versions(client):
     assert r.headers.get("etag") and "max-age=60" in r.headers.get("cache-control", "")
     items = body["items"]
     assert items and all(CONTRACT_FIELDS <= set(i) for i in items)
-    vat = next(i for i in items if i["obligation_type"] == "vat_return" and i["period_end"] == "2026-09-30")
-    assert vat["due_date"] == "2026-10-28" and vat["due_date_source"] == "rule_derived" and vat["is_stated"] is False
+    vat = next(i for i in items if i["obligation_type"] == "vat_return" and i["period_end"] == OPEN.end.isoformat())
+    assert vat["due_date"] == OPEN.due.isoformat() and vat["due_date_source"] == "rule_derived" and vat["is_stated"] is False
     assert vat["rule_version"] == "2026.10" and vat["calendar_version"].startswith("UAE-FEDERAL")
-    assert vat["readiness"] == "draft_ready"  # Demo data fixture: draft ready for owner review
-    assert vat["days_left"] == (date(2026, 10, 28) - dubai_today()).days
+    assert vat["readiness"] == "draft_ready" and vat["missing_items"] == []  # from the real draft pack, ready for owner review
+    pack = client.get(f"/api/companies/{CO_ALNOOR}/drafts/{vat['draft_pack_id']}").json()
+    assert pack["period_id"] == OPEN.period_id and pack["review_status"] == "under_review"
+    assert vat["days_left"] == (OPEN.due - dubai_today()).days
     lic = next(i for i in items if i["obligation_type"] == "licence_renewal")
     assert lic["due_date_source"] == "det_record" and lic["is_stated"] and lic["days_left"] == 45
     ejari = next(i for i in items if i["obligation_type"] == "ejari_renewal")
@@ -97,7 +103,7 @@ def test_overdue_pinned_top_and_safwa_states(client):
     assert items[0]["days_left"] < 0
     lic = next(i for i in items if i["obligation_type"] == "licence_renewal")
     assert lic["status_chip"] == "overdue" and lic["days_left"] == -10
-    ct = next(i for i in items if i["obligation_type"] == "ct_return" and i["period_end"] == "2025-12-31")
+    ct = next(i for i in items if i["obligation_type"] == "ct_return" and i["period_end"] == CT.end.isoformat())
     assert ct["filed_state"] == "owner_declared_unverified" and ct["done"] and ct["readiness"] != "receipt_recorded"
 
 
@@ -119,8 +125,8 @@ def test_gulftech_ct_date_not_confirmed(db):
 
 def test_blue_dune_ct_data_missing(db):
     rows = dl.obligations_for(db, CO_BLUEDUNE)
-    ct = next(r for r in rows if r["obligation_type"] == "ct_return" and r["period_end"] == "2025-12-31")
-    assert ct["due_date"] == "2026-09-30" and ct["readiness"] == "data_missing" and ct["missing_items"]
+    ct = next(r for r in rows if r["obligation_type"] == "ct_return" and r["period_end"] == CT.end.isoformat())
+    assert ct["due_date"] == CT.due.isoformat() and ct["readiness"] == "data_missing" and ct["missing_items"]
     if ct["days_left"] < 0:
         assert ct["status_chip"] == "overdue_status_unconfirmed"  # never counted late
 
@@ -128,15 +134,16 @@ def test_blue_dune_ct_data_missing(db):
 def test_precedence_authority_over_rule_over_owner(client, db):
     sign_in(client, "khalid")
     items = client.get(f"/api/companies/{CO_ALNOOR}/obligations").json()["items"]
-    vat = next(i for i in items if i["obligation_type"] == "vat_return" and i["period_end"] == "2026-12-31")
+    vat = next(i for i in items if i["obligation_type"] == "vat_return" and i["period_end"] == CURRENT.end.isoformat())
+    stated = (CURRENT.due + timedelta(days=1)).isoformat()
     # authority date without evidence is refused
-    r = client.post(f"/api/companies/{CO_ALNOOR}/obligations/{vat['obligation_id']}/authority-date", json={"kind": "FTA_NOTICE", "stated_date": "2027-01-29"})
+    r = client.post(f"/api/companies/{CO_ALNOOR}/obligations/{vat['obligation_id']}/authority-date", json={"kind": "FTA_NOTICE", "stated_date": stated})
     assert r.status_code == 422 and r.json()["error"] == "EVIDENCE_REQUIRED"
-    r = client.post(f"/api/companies/{CO_ALNOOR}/obligations/{vat['obligation_id']}/authority-date", json={"kind": "FTA_NOTICE", "stated_date": "2027-01-29", "evidence_ref": "doc_123"})
+    r = client.post(f"/api/companies/{CO_ALNOOR}/obligations/{vat['obligation_id']}/authority-date", json={"kind": "FTA_NOTICE", "stated_date": stated, "evidence_ref": "doc_123"})
     assert r.status_code == 200, r.text
     out = r.json()
-    assert out["due_date"] == "2027-01-29" and out["statutory_date"] == "2027-01-28" and out["due_date_source"] == "fta_stated" and out["is_stated"]
-    assert out["date_updated"]["old_date"] == "2027-01-28" and out["date_updated"]["source_tag"] == "authority date entered by you"
+    assert out["due_date"] == stated and out["statutory_date"] == CURRENT.due.isoformat() and out["due_date_source"] == "fta_stated" and out["is_stated"]
+    assert out["date_updated"]["old_date"] == CURRENT.due.isoformat() and out["date_updated"]["source_tag"] == "authority date entered by you"
 
 
 def test_no_roll_weekend_keeps_statutory_and_recommends_earlier(db):
@@ -204,12 +211,12 @@ def test_batch_priority_checkpoint_resume_and_failure(db):
 def test_filed_receipt_marks_done_and_owner_only_declaration(client):
     sign_in(client, "omar")
     items = client.get(f"/api/companies/{CO_ALNOOR}/obligations").json()["items"]
-    vat = next(i for i in items if i["obligation_type"] == "vat_return" and i["period_end"] == "2026-09-30")
+    vat = next(i for i in items if i["obligation_type"] == "vat_return" and i["period_end"] == OPEN.end.isoformat())
     r = client.post(f"/api/companies/{CO_ALNOOR}/obligations/{vat['obligation_id']}/filed-evidence", json={"source": "owner_declaration"})
     assert r.status_code == 403
     r = client.post(f"/api/companies/{CO_ALNOOR}/obligations/{vat['obligation_id']}/filed-evidence", json={"source": "receipt", "filing_reference": "ACK-1"})
     assert r.status_code == 422
-    r = client.post(f"/api/companies/{CO_ALNOOR}/obligations/{vat['obligation_id']}/filed-evidence", json={"source": "receipt", "filing_reference": "ACK-1", "filed_date": "2026-10-10"})
+    r = client.post(f"/api/companies/{CO_ALNOOR}/obligations/{vat['obligation_id']}/filed-evidence", json={"source": "receipt", "filing_reference": "ACK-1", "filed_date": QUARTERS.today.isoformat()})
     assert r.status_code == 200 and r.json()["readiness"] == "receipt_recorded" and r.json()["done"]
 
 
@@ -239,6 +246,6 @@ def test_company_isolation_and_det_admin(client):
 
 
 def test_tax_hook_and_superseded_rows(db):
-    out = dl.due_date_for(db, CO_ALNOOR, "vat", date(2026, 9, 30))
-    assert out["date"] == date(2026, 10, 28)
+    out = dl.due_date_for(db, CO_ALNOOR, "vat", OPEN.end)
+    assert out["date"] == OPEN.due
     assert db.query(Obligation).filter_by(company_id=CO_ALNOOR, superseded=True).count() == 0

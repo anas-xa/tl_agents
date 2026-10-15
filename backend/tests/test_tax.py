@@ -3,11 +3,19 @@
 from __future__ import annotations
 
 import json
-from datetime import date
+from datetime import date, timedelta
 
 from sqlalchemy import select
 
-from app.demo import CO_ALNOOR, CO_BLUEDUNE, CO_GULFTECH, CO_SAFWA, PERSONA_UUIDS
+from app.demo import (
+    CO_ALNOOR,
+    CO_BLUEDUNE,
+    CO_GULFTECH,
+    CO_SAFWA,
+    PERSONA_UUIDS,
+    demo_ct_year,
+    demo_vat_quarters,
+)
 from app.modules.audit.models import AuditEvent
 from app.modules.bookkeeping import service as bk
 from app.modules.companies.models import CompanyRole as Role
@@ -16,6 +24,9 @@ from app.modules.tax.models import ESCALATED_STATUS, SCOPE_BLOCK_WORDING, Escala
 from tests.conftest import sign_in
 
 AED = 100
+# Demo periods (today-relative): previous/open quarters are fully reviewed, the running quarter holds the review queue.
+QUARTERS, CT_FY = demo_vat_quarters(), demo_ct_year().period_id
+PREV, OPEN, CURRENT = QUARTERS.previous.period_id, QUARTERS.open.period_id, QUARTERS.current.period_id
 
 
 class FakePrincipal:
@@ -158,15 +169,15 @@ def test_vat_tp_v1_tax_point_credit_note_special_sector_missing_fx_and_dedup(db)
 
 
 def test_blocked_ct_for_tax_group_and_unclear_with_fixed_wording_and_escalation(client, db):
-    calc = svc.latest(db, CO_SAFWA, "ct", "FY2025")
+    calc = svc.latest(db, CO_SAFWA, "ct", CT_FY)
     assert calc.state == "blocked" and calc.state_reason == SCOPE_BLOCK_WORDING and calc.outputs["escalation_state"] == ESCALATED_STATUS and calc.outputs.get("tax_fils") is None
     esc = db.get(EscalationRecord, calc.escalation_ids[0])
     assert esc.trigger_id == "scope" and esc.status == ESCALATED_STATUS
-    unclear = svc.calculate_ct(db, CO_GULFTECH, "FY2025")
+    unclear = svc.calculate_ct(db, CO_GULFTECH, CT_FY)
     assert unclear.state == "blocked" and unclear.outputs["wording"] == "This company is outside the pilot's supported scope; a specialist will contact you"
     db.commit()  # never hold a write on the test session while the app session writes (SQLite lock)
     sign_in(client, "khalid")
-    r = client.get(f"/api/companies/{CO_SAFWA}/tax/ct/FY2025")
+    r = client.get(f"/api/companies/{CO_SAFWA}/tax/ct/{CT_FY}")
     assert r.status_code == 200 and r.json()["calculation"]["state"] == "blocked" and r.json()["calculation"]["can_approve"] is False
     assert "approved" not in json.dumps(r.json()["calculation"]["outputs"]).lower()
 
@@ -185,25 +196,25 @@ def test_no_rule_stop_shows_no_figure_and_notifies(client, db):
 
 def test_demo_vat_result_stale_after_transactions_change_and_mark_reviewed(client, db):
     sign_in(client, "khalid")
-    body = client.get(f"/api/companies/{CO_ALNOOR}/tax/vat/2026-Q2").json()
+    body = client.get(f"/api/companies/{CO_ALNOOR}/tax/vat/{OPEN}").json()
     c = body["calculation"]
     assert c["state"] == "current" and c["ai_label"] == "AI-prepared calculation. Status: not reviewed" and c["rule_refs"]["vat-rate"]["instrument"]
     assert c["comparison"]["text"] == "Same result under current rules." and c["outputs"]["lines"]
-    r = client.post(f"/api/companies/{CO_ALNOOR}/tax/vat/2026-Q2/mark-reviewed")
+    r = client.post(f"/api/companies/{CO_ALNOOR}/tax/vat/{OPEN}/mark-reviewed")
     assert r.status_code == 200 and r.json()["review_status"] == "reviewed" and r.json()["reviewed_by"]["role"] == "owner"
-    _post_ledger(db, CO_ALNOOR, [{"source_id": "st-1", "txn_date": "2026-05-15", "description": "Invoice INV-77 sale", "amount_fils": 1_000 * AED, "counterparty": "New"}])
+    _post_ledger(db, CO_ALNOOR, [{"source_id": "st-1", "txn_date": (QUARTERS.open.start + timedelta(days=44)).isoformat(), "description": "Invoice INV-77 sale", "amount_fils": 1_000 * AED, "counterparty": "New"}])
     db.commit()
-    c = client.get(f"/api/companies/{CO_ALNOOR}/tax/vat/2026-Q2").json()["calculation"]
+    c = client.get(f"/api/companies/{CO_ALNOOR}/tax/vat/{OPEN}").json()["calculation"]
     assert c["state"] == "stale" and c["review_status"] == "not_reviewed" and c["can_approve"] is False
-    assert client.post(f"/api/companies/{CO_ALNOOR}/tax/vat/2026-Q2/mark-reviewed").status_code == 409
-    r = client.post(f"/api/companies/{CO_ALNOOR}/tax/vat/2026-Q2")
+    assert client.post(f"/api/companies/{CO_ALNOOR}/tax/vat/{OPEN}/mark-reviewed").status_code == 409
+    r = client.post(f"/api/companies/{CO_ALNOOR}/tax/vat/{OPEN}")
     assert r.status_code == 200 and r.json()["version"] == c["version"] + 1 and r.json()["state"] == "current"
-    assert len(client.get(f"/api/companies/{CO_ALNOOR}/tax/vat/2026-Q2/versions").json()) == c["version"] + 1  # old versions kept
+    assert len(client.get(f"/api/companies/{CO_ALNOOR}/tax/vat/{OPEN}/versions").json()) == c["version"] + 1  # old versions kept
 
 
 def test_incomplete_result_excludes_needs_review_items(client):
     sign_in(client, "khalid")
-    r = client.post(f"/api/companies/{CO_ALNOOR}/tax/vat/2026-Q3")
+    r = client.post(f"/api/companies/{CO_ALNOOR}/tax/vat/{CURRENT}")
     c = r.json()
     assert c["state"] == "incomplete" and c["excluded_count"] >= 1 and c["approval_disabled_reason"] == "Approval is off until all items are reviewed." and c["state_reason"].startswith("Excludes")
     assert all({"date", "description", "aed_amount_fils", "reason"} <= set(e) for e in c["excluded_items"])
@@ -228,22 +239,22 @@ def test_loss_carry_forward_capped_at_75_percent(db):
 
 def test_adjustment_needs_reason_and_api_read_only_variants(client, db):
     sign_in(client, "khalid")
-    r = client.post(f"/api/companies/{CO_ALNOOR}/tax/ct/FY2025/adjustments", json={"kind": "non_deductible", "label": "Fines", "amount_fils": 500 * AED, "reason": ""})
+    r = client.post(f"/api/companies/{CO_ALNOOR}/tax/ct/{CT_FY}/adjustments", json={"kind": "non_deductible", "label": "Fines", "amount_fils": 500 * AED, "reason": ""})
     assert r.status_code == 422 and r.json()["error"] == "REASON_REQUIRED"
-    r = client.post(f"/api/companies/{CO_ALNOOR}/tax/ct/FY2025/adjustments", json={"kind": "non_deductible", "label": "Fines", "amount_fils": 500 * AED, "reason": "traffic fines"})
+    r = client.post(f"/api/companies/{CO_ALNOOR}/tax/ct/{CT_FY}/adjustments", json={"kind": "non_deductible", "label": "Fines", "amount_fils": 500 * AED, "reason": "traffic fines"})
     assert r.status_code == 200 and r.json()["class"] == "flagged" and r.json()["held_for_specialist"] is True
-    c = client.post(f"/api/companies/{CO_ALNOOR}/tax/ct/FY2025").json()
+    c = client.post(f"/api/companies/{CO_ALNOOR}/tax/ct/{CT_FY}").json()
     assert c["outputs"]["sbr"]["indicator"] == "may be eligible" and any(a["kind"] == "non_deductible" for a in c["outputs"]["adjustments"])
     assert "Tax Agent" not in json.dumps(c)
     client.cookies.clear()
     sign_in(client, "priya")
-    body = client.get(f"/api/companies/{CO_BLUEDUNE}/tax/vat/2026-Q3").json()
+    body = client.get(f"/api/companies/{CO_BLUEDUNE}/tax/vat/{OPEN}").json()
     assert body["role"] == "remote_owner" and body["calculation"] is None and body["empty"] == "add_trn"
     client.cookies.clear()
     sign_in(client, "omar")
-    r = client.post(f"/api/companies/{CO_GULFTECH}/tax/vat/2026-Q3")
+    r = client.post(f"/api/companies/{CO_GULFTECH}/tax/vat/{OPEN}")
     assert r.status_code == 403 and r.json()["error"] == "NO_FUNCTION"
-    body = client.get(f"/api/companies/{CO_GULFTECH}/tax/vat/2026-Q3").json()
+    body = client.get(f"/api/companies/{CO_GULFTECH}/tax/vat/{OPEN}").json()
     assert body["view_only_reason"] == "You can view this calculation. You do not have the tax-preparation function."
     client.cookies.clear()
     sign_in(client, "hassan")
