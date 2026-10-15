@@ -79,7 +79,8 @@ def _seed_config(db: Session) -> None:
     c(db, "refusal_cause_display.enabled", False, owner="Product", status="to_be_confirmed", label="Phase 1B")
     c(db, "corpus.authoritative_language", "ar", owner="Trade Licensing Expert", status="confirmed", label="English = unofficial translation")
     # E8-S4
-    c(db, "suppression.min_group_size", 10, unit="cases", owner="DET + data protection owner", status="provisional", label="provisional N=10; technique and default N open (Q139)")
+    # superseded by det_dashboard.min_group_size (one platform-wide N, kpis.suppression)
+    # c(db, "suppression.min_group_size", 10, unit="cases", owner="DET + data protection owner", status="provisional", label="provisional N=10; technique and default N open (Q139)")
     c(db, "refresh.schedule", "weekly", owner="Product", status="provisional")
     c(db, "k21.target", None, owner="DET", status="to_be_confirmed", label="no target line until set")
     c(db, "k22.target", None, owner="DET", status="to_be_confirmed", label="no target line until set")

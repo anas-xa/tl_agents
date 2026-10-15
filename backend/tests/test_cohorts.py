@@ -50,7 +50,7 @@ def test_config_waves_caps_modes_and_eligibility_rule(client, db):
     assert cfg["can_manage"] is True and cfg["can_approve"] is False
     assert cfg["eligibility_rule"]["owner_location"].startswith("never")
     assert get_rule(db, "cohort_eligibility_v1").status == "to_be_confirmed"
-    assert get_config_entry(db, "suppression.N").label.startswith("provisional, set by DET")
+    assert get_config_entry(db, "det_dashboard.min_group_size").value == 10  # one platform-wide N
     assert get_config(db, "cohort.wave1_cap") == 100 and get_config(db, "cohort.wave2_cap") == 300
 
 

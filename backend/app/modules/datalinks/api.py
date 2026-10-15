@@ -281,5 +281,12 @@ def k27(principal: Principal = Depends(require_staff("det.aggregates.view")), db
         totals["uploaded_present"] += rows["k27"]["uploaded_line"]["denominator"]
         totals["bank_not_available"] += 1 if any(r["source_type"] == "bank" and r["badge"] == "not_available_yet" for r in rows["rows"]) else 0
         totals["manual_statement_on_file"] += 1 if rows["manual_uploads_line"]["count"] else 0
-    totals["k11_headline"] = "Not yet measurable: bank route not available"
-    return totals
+    from app.modules.kpis.suppression import min_group_size, suppress_count
+
+    n = min_group_size(db)
+    out = {k: suppress_count(v, n) for k, v in totals.items()}
+    if totals["companies"] < n:  # filter blocking: a population below N publishes no numbers at all
+        out = {k: suppress_count(1, n) for k in totals}
+    out["k11_headline"] = "Not yet measurable: bank route not available"
+    out["suppression_n"] = n
+    return out

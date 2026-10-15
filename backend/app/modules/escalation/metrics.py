@@ -63,7 +63,9 @@ def _k21_cell(total: int, escalated: int, events: int) -> dict:
 
 def compute_aggregates(db: Session, *, period_from: date, period_to: date, module: str | None = None, reason: str | None = None, specialist_type: str | None = None, priority: str | None = None, now: datetime | None = None) -> dict:
     now = now or utcnow()
-    n = int(get_config(db, "suppression.min_group_size", 10))
+    from app.modules.kpis.suppression import min_group_size
+
+    n = min_group_size(db)
     coverage = calendar_coverage(db, period_from, period_to)
     start_dt = datetime.combine(period_from, datetime.min.time()) - timedelta(hours=4)  # Dubai-local day boundaries
     end_dt = datetime.combine(period_to + timedelta(days=1), datetime.min.time()) - timedelta(hours=4)

@@ -40,7 +40,10 @@ def wave_config(db: Session, code: str) -> dict:
 
 
 def suppression_n(db: Session) -> int:
-    return int(get_config(db, "suppression.N", 10) or 10)
+    """The one platform-wide minimum group size (det_dashboard.min_group_size, owned by the DET pilot manager)."""
+    from app.modules.kpis.suppression import min_group_size
+
+    return min_group_size(db)
 
 
 def default_on_mode_enabled(db: Session) -> bool:
@@ -63,12 +66,13 @@ def suppress_cell(value: int, n: int) -> dict:
 def suppress_breakdown(cells: dict[str, int], n: int) -> dict[str, dict]:
     """Primary suppression (< N) plus complementary suppression of the next-smallest cell so that a hidden
     value cannot be derived by subtraction from the total."""
+    from app.modules.kpis.suppression import _hide_until_safe
+
     out = {k: suppress_cell(v, n) for k, v in cells.items()}
-    hidden = [k for k, v in out.items() if v["suppressed"]]
-    visible = [k for k, v in out.items() if not v["suppressed"]]
-    if len(hidden) == 1 and visible:
-        smallest = min(visible, key=lambda k: cells[k])
-        out[smallest] = {"value": None, "suppressed": True, "label": f"fewer_than_{n}", "complementary": True}
+    keys = list(cells)
+    hidden = {i for i, k in enumerate(keys) if out[k]["suppressed"]}
+    for i in _hide_until_safe([float(cells[k]) for k in keys], hidden, n, publish_total=True):
+        out[keys[i]] = {"value": None, "suppressed": True, "label": f"fewer_than_{n}", "complementary": True}
     return out
 
 

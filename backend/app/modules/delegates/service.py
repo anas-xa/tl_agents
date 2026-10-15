@@ -1166,7 +1166,9 @@ def _complement(cells: dict[str, dict], values: dict[str, int], minimum: int) ->
 def delegation_overview(db: Session, principal: Principal | None = None, *, period_days: int = 30) -> dict:
     """SC14 'Delegation overview': operational counters only, suppression below the minimum group size,
     no names, identities, company names or rights contents. Every DET view is logged."""
-    minimum = _int(db, "delegates.sc14_min_group_size", 10)
+    from app.modules.kpis.suppression import min_group_size
+
+    minimum = min_group_size(db)
     now = utcnow()
     since = now - timedelta(days=period_days)
     fn = _optional("app.modules.subscriptions.service", "count_subscribed_companies")

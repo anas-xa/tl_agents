@@ -340,7 +340,9 @@ def test_staff_technical_detail_logged_and_aggregates(client, db):
     assert client.get(f"/api/companies/{ALNOOR}/links/bank-route/technical-detail").status_code == 403
     sign_in(client, "sara")
     agg = client.get("/api/datalinks/k27").json()
-    assert agg["companies"] == 4 and agg["k11_headline"] == "Not yet measurable: bank route not available" and agg["manual_statement_on_file"] >= 1
+    # four demo companies is below the platform minimum group size (10): every count is hidden, labels only
+    assert agg["k11_headline"] == "Not yet measurable: bank route not available" and agg["suppression_n"] == 10
+    assert agg["companies"]["suppressed"] is True and "value" not in agg["companies"] and agg["manual_statement_on_file"]["label_en"] == "Fewer than 10"
     sign_in(client, "lina")
     reg = client.get("/api/datalinks/route-register").json()
     assert reg["register"]["route_holder"] == "licensed_provider_partner" and reg["register"]["coverage_confirmed"] is False
