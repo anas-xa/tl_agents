@@ -30,9 +30,9 @@ class StartResponse(BaseModel):
 
 
 @router.post("/start", response_model=StartResponse)
-def start(language: str = "en", return_to: str | None = None, invite: str | None = None, db: Session = Depends(get_db)):
+def start(language: str = "en", return_to: str | None = None, invite: str | None = None, explicit_language: bool = False, db: Session = Depends(get_db)):
     language = "ar" if language.startswith("ar") else "en"
-    url, state = start_signin(db, language=language, return_to=return_to, invitation_token=invite)
+    url, state = start_signin(db, language=language, return_to=return_to, invitation_token=invite, language_explicit=explicit_language)
     db.commit()
     return StartResponse(redirect_url=url, state=state)
 

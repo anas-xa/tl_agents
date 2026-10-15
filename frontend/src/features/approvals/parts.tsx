@@ -1,7 +1,7 @@
 import { useTranslation } from 'react-i18next'
 import { Chip, Ident } from '../../components/ui'
 import { ApiError } from '../../lib/api'
-import { formatDate, formatDateTime } from '../../lib/format'
+import { formatDate, formatDateTime, iso } from '../../lib/format'
 import type { RequestRow } from './types'
 
 export function useLang(): 'ar' | 'en' {
@@ -10,7 +10,7 @@ export function useLang(): 'ar' | 'en' {
 }
 
 export function returnTitle(t: (k: string, o?: Record<string, unknown>) => string, r: { return_type: string; period_id: string }) {
-  return `${t(r.return_type === 'ct' ? 'ct' : 'vat')} · ${t('period', { period: r.period_id })}`
+  return `${t(r.return_type === 'ct' ? 'ct' : 'vat')} · ${t('period', { period: iso(r.period_id) })}`
 }
 
 /** Request status chip: icon + text, never colour alone. */

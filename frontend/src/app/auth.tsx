@@ -2,6 +2,7 @@ import { createContext, useCallback, useContext, useEffect, useMemo, useState, t
 import { useTranslation } from 'react-i18next'
 import { ApiError, get, patch, post } from '../lib/api'
 import { setNumeralStyle, type NumeralStyle } from '../lib/format'
+import { explicitLanguage, markExplicitLanguage } from '../i18n'
 
 export interface CompanySummary {
   company_id: string
@@ -67,7 +68,12 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       const data = await get<Me>('/api/auth/me')
       setMe(data)
       setError(null)
-      if (data.language && data.language !== i18n.language) i18n.changeLanguage(data.language)
+      // Profile language applies unless the user chose a language explicitly during this visit, which is saved.
+      const explicit = explicitLanguage()
+      if (explicit) {
+        if (explicit !== i18n.language) i18n.changeLanguage(explicit)
+        if (data.language !== explicit) patch('/api/auth/me/preferences', { language: explicit }).catch(() => undefined)
+      } else if (data.language && data.language !== i18n.language) i18n.changeLanguage(data.language)
       setNumeralStyle((data.numerals as NumeralStyle) || 'western')
       return data
     } catch (e) {
@@ -146,6 +152,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       sessionEnded,
       markSessionEnded: () => setSessionEnded(true),
       setLanguage: async (lang) => {
+        markExplicitLanguage(lang)
         i18n.changeLanguage(lang)
         if (me) {
           // Profile save: retried 3 times with increasing delay; the session keeps the language regardless.

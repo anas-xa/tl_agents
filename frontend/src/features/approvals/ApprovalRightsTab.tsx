@@ -3,7 +3,7 @@ import { useTranslation } from 'react-i18next'
 import { useAuth } from '../../app/auth'
 import { Button, Chip, Dialog, Empty, Field, Message, Panel, Skeleton, Table } from '../../components/ui'
 import { ApiError, get, post } from '../../lib/api'
-import { formatDate, formatDateTime } from '../../lib/format'
+import { formatDate, formatDateTime, iso } from '../../lib/format'
 import { useLang } from './parts'
 import type { Grant, GrantsResponse } from './types'
 
@@ -200,7 +200,7 @@ export default function ApprovalRightsTab() {
               <tr key={g.grant_id}>
                 <td><bdi>{g.delegate_name}</bdi><div className="hint"><bdi dir="ltr">{g.grant_id}</bdi></div></td>
                 <td>{chip(g.status, g.end_date)}</td>
-                <td>{g.scope_items.map((s) => `${s.tax_type.toUpperCase()}${s.period_id ? ` ${s.period_id}` : ''}`).join(', ')} · {formatDate(g.start_date, lang)} – {formatDate(g.end_date, lang)}</td>
+                <td>{g.scope_items.map((s) => `${s.tax_type.toUpperCase()}${s.period_id ? ` ${iso(s.period_id)}` : ''}`).join(', ')} · {formatDate(g.start_date, lang)} – {formatDate(g.end_date, lang)}</td>
                 <td>{g.status === 'active' && <Button variant="danger" onClick={() => setRevoking(g)}>{t('revoke')}</Button>}</td>
               </tr>
             ))}

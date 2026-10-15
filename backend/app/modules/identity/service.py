@@ -61,7 +61,7 @@ class SignInResult:
     details: dict = field(default_factory=dict)
 
 
-def start_signin(db: Session, *, language: str = "en", return_to: str | None = None, invitation_token: str | None = None) -> tuple[str, str]:
+def start_signin(db: Session, *, language: str = "en", return_to: str | None = None, invitation_token: str | None = None, language_explicit: bool = False) -> tuple[str, str]:
     settings = get_settings()
     state = secrets.token_urlsafe(32)
     nonce = secrets.token_urlsafe(24)
@@ -73,6 +73,7 @@ def start_signin(db: Session, *, language: str = "en", return_to: str | None = N
             nonce=nonce,
             code_verifier=verifier,
             language=language,
+            language_explicit=language_explicit,
             expires_at=utcnow() + timedelta(minutes=minutes),
             return_to=(return_to or "") + (f"|invite={invitation_token}" if invitation_token else "") or None,
         )
@@ -187,6 +188,8 @@ def complete_signin(db: Session, *, state: str, code: str | None, error: str | N
         db.add(identity)
     else:
         identity.display_name = assertion.name
+        if pending.language_explicit:  # explicit choice this visit > profile (E1-S5 precedence); saved to profile
+            identity.language = language
         identity.assurance_level = assertion.assurance_level
         identity.profile_type = assertion.profile_type
         identity.det_match_result = match

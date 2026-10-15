@@ -4,6 +4,7 @@ import { useNavigate, useSearchParams } from 'react-router-dom'
 import { useAuth } from '../app/auth'
 import { Button, Message } from '../components/ui'
 import { post } from '../lib/api'
+import { explicitLanguage } from '../i18n'
 import { LanguageToggle } from './Shell'
 
 /** SC1 Sign-in. UAE PASS only; no fallback link (settled). */
@@ -33,7 +34,7 @@ export default function SignIn() {
     try {
       const returnTo = params.get('return_to')
       const safeReturn = returnTo && returnTo.startsWith('/') && !returnTo.startsWith('//') ? returnTo : undefined
-      const res = await post<{ redirect_url: string; state: string }>(`/api/auth/start?language=${i18n.language}${safeReturn ? `&return_to=${encodeURIComponent(safeReturn)}` : ''}`)
+      const res = await post<{ redirect_url: string; state: string }>(`/api/auth/start?language=${i18n.language}${explicitLanguage() ? '&explicit_language=true' : ''}${safeReturn ? `&return_to=${encodeURIComponent(safeReturn)}` : ''}`)
       setState(res.state)
       window.location.assign(res.redirect_url)
     } catch {

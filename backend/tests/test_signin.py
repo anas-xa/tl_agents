@@ -216,3 +216,24 @@ def test_refused_cross_company_request_is_kept_in_audit_trail(client, db):
     db.expire_all()
     refused = db.scalars(select(AuditEvent).where(AuditEvent.event_type == "ACCESS_REFUSED", AuditEvent.company_id == "co_alnoor")).all()
     assert refused and refused[-1].reason_code == "NOT_YOUR_COMPANY"
+
+
+def test_explicit_language_choice_this_visit_overrides_profile(client, db):
+    from app.modules.identity.models import Identity
+
+    sign_in(client, "khalid", language="en")
+    client.post("/api/auth/signout")
+    # a plain sign-in in Arabic keeps the saved profile language
+    sign_in(client, "khalid", language="ar")
+    assert db.get(Identity, "uuid-khalid-owner").language == "en"
+    client.post("/api/auth/signout")
+    # an explicit choice on SC1 wins and is saved to the profile
+    start = client.post("/api/auth/start", params={"language": "ar", "explicit_language": "true"}).json()
+    from urllib.parse import parse_qs, urlparse
+
+    q = parse_qs(urlparse(start["redirect_url"]).query)
+    r = client.get("/mock-uaepass/authorize", params={"state": q["state"][0], "nonce": q["nonce"][0], "redirect_uri": q["redirect_uri"][0], "code_challenge": q["code_challenge"][0], "persona": "khalid"})
+    client.get(r.headers["location"].replace("http://testserver", ""))
+    db.expire_all()
+    assert db.get(Identity, "uuid-khalid-owner").language == "ar"
+    assert client.get("/api/auth/me").json()["language"] == "ar"

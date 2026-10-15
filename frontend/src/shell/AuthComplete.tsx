@@ -7,14 +7,12 @@ import { patch } from '../lib/api'
 
 /** Landing after the UAE PASS callback: checks access, shows the one-time privacy notice, then routes home. */
 export default function AuthComplete() {
-  const { t, i18n } = useTranslation()
+  const { t } = useTranslation()
   const [params] = useSearchParams()
   const { refresh, me, loading } = useAuth()
   const nav = useNavigate()
   const [showPrivacy, setShowPrivacy] = useState(false)
-  const lang = params.get('lang')
   useEffect(() => {
-    if (lang && lang !== i18n.language) i18n.changeLanguage(lang)
     refresh().then((data) => {
       if (!data) {
         nav('/signin?reason=SESSION_ENDED', { replace: true })

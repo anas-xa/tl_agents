@@ -92,6 +92,7 @@ class PendingSignIn(Base):
     nonce: Mapped[str] = mapped_column(String(64))
     code_verifier: Mapped[str] = mapped_column(String(128))
     language: Mapped[str] = mapped_column(String(5), default="en")
+    language_explicit: Mapped[bool] = mapped_column(Boolean, default=False)  # chosen on SC1 this visit: wins over profile
     created_at: Mapped[datetime] = mapped_column(DateTime, default=utcnow)
     expires_at: Mapped[datetime] = mapped_column(DateTime)
     used: Mapped[bool] = mapped_column(Boolean, default=False)

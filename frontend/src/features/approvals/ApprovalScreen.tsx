@@ -4,7 +4,7 @@ import { Link, useParams } from 'react-router-dom'
 import { useAuth } from '../../app/auth'
 import { Button, Chip, Dialog, Field, Message, Panel, Skeleton, Table } from '../../components/ui'
 import { ApiError, get, post } from '../../lib/api'
-import { formatAED, formatDate } from '../../lib/format'
+import { formatAED, formatDate, iso } from '../../lib/format'
 import FilingPanel from './FilingPanel'
 import { DueDate, Hash, RequestChip, refusalText, returnTitle, useLang, when } from './parts'
 import type { ApprovalRecord, PackLine, RequestDetail } from './types'
@@ -232,7 +232,7 @@ export default function ApprovalScreen() {
             </ul>
             <p><Chip tone="draft">{t('ai_label')}</Chip></p>
             <p>{reviewer ? t('actor_line', { name: reviewer }) : t('actor_line_none')}</p>
-            <p>{data.return_type === 'vat' ? t('summary_vat', { period: data.period_id, out: amount('output_vat'), inp: amount('input_vat'), net: amount('net_vat') }) : t('summary_ct', { period: data.period_id, tax: amount('tax') })}</p>
+            <p>{data.return_type === 'vat' ? t('summary_vat', { period: iso(data.period_id), out: amount('output_vat'), inp: amount('input_vat'), net: amount('net_vat') }) : t('summary_ct', { period: iso(data.period_id), tax: amount('tax') })}</p>
             <p className="hint">
               {t('version_label', { v: data.pack_version, hash: '' })}<Hash value={data.draft_content_hash} /> · {when(data.created_at, lang)}
             </p>

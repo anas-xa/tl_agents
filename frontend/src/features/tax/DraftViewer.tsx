@@ -4,7 +4,7 @@ import { Link, useParams } from 'react-router-dom'
 import { useAuth } from '../../app/auth'
 import { Button, Chip, Dialog, Empty, Field, Message, Panel, Skeleton, Table } from '../../components/ui'
 import { get, post } from '../../lib/api'
-import { formatAED, formatDateTime } from '../../lib/format'
+import { formatAED, formatDateTime, iso } from '../../lib/format'
 import { SR_ONLY, errorKey, type Pack, type PackLine } from './types'
 
 const REOPEN_NEEDS_REASON = ['accepted_by_reviewer', 'accepted_by_owner_no_independent_review']
@@ -99,7 +99,7 @@ export default function DraftViewer() {
         <div><strong>{t('watermark')}</strong></div>
       </div>
       <header>
-        <h1>{t('draft_for', { type: t(pack.tax_type === 'vat' ? 'tax_type_vat' : 'tax_type_ct'), period: pack.period_id })}</h1>
+        <h1>{t('draft_for', { type: t(pack.tax_type === 'vat' ? 'tax_type_vat' : 'tax_type_ct'), period: iso(pack.period_id) })}</h1>
         <div className="actions" style={{ marginTop: 4 }}>
           <Chip tone="draft" icon="✎">{t('ai_label')}</Chip>
           <Chip tone={pack.superseded ? 'neutral' : 'info'}>{t('status_label', { status })}</Chip>

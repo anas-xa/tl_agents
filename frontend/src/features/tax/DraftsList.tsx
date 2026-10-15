@@ -3,7 +3,7 @@ import { useTranslation } from 'react-i18next'
 import { Link } from 'react-router-dom'
 import { Chip, Empty, Message, Skeleton, Table } from '../../components/ui'
 import { get } from '../../lib/api'
-import { formatDateTime } from '../../lib/format'
+import { formatDateTime, iso } from '../../lib/format'
 import { errorKey, type PackSummary } from './types'
 
 /** Draft returns for the company (E5-S3). Held drafts are listed for the owner only. */
@@ -28,7 +28,7 @@ export default function DraftsList({ companyId }: { companyId: string }) {
         {packs.map((p) => (
           <tr key={p.id}>
             <td>
-              <Link to={`/returns/${p.id}`}>{t('draft_for', { type: t(p.tax_type === 'vat' ? 'tax_type_vat' : 'tax_type_ct'), period: p.period_id })}</Link>
+              <Link to={`/returns/${p.id}`}>{t('draft_for', { type: t(p.tax_type === 'vat' ? 'tax_type_vat' : 'tax_type_ct'), period: iso(p.period_id) })}</Link>
               {p.is_demo && <> <Chip tone="neutral">{t('demo')}</Chip></>}
             </td>
             <td>

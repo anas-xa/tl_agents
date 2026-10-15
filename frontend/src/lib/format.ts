@@ -82,3 +82,9 @@ export function daysLeftTier(days: number | null): 'neutral' | 'attention' | 'ur
   if (days <= 30) return 'attention'
   return 'neutral'
 }
+
+/** Isolate an identifier (period code, reference, TRN) inside translated text so RTL never reorders it. */
+export function iso(value: string | number | null | undefined): string {
+  if (value === null || value === undefined || value === '') return ''
+  return `⁨${value}⁩`
+}
