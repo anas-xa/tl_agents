@@ -13,7 +13,7 @@ from sqlalchemy.orm import Session
 from app.core.errors import Forbidden, NotFound, Unauthenticated, ValidationFailed
 from app.core.ids import reference_code
 from app.core.settings import get_settings
-from app.core.time import utcnow
+from app.core.time import dubai_today, utcnow
 from app.modules.audit.service import AuditWriteError, actor_key_for, record_event
 from app.modules.companies.models import CompanyRole
 from app.modules.config.service import get_config, get_config_entry
@@ -254,7 +254,7 @@ def resolve_roles(db: Session, identity_uuid: str, *, det_match_result: str | No
         if r.role in OWNER_LEVEL_ROLES and det_match_result != "matched":
             owner_blocked.append(r.company_id)
             continue
-        if r.valid_to and r.valid_to < utcnow().date():
+        if r.valid_to and r.valid_to < dubai_today():
             continue
         company_roles.append(r)
     staff = list(db.scalars(select(StaffRole).where(StaffRole.identity_uuid == identity_uuid, StaffRole.status == "active")))

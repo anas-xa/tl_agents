@@ -12,7 +12,7 @@ from sqlalchemy.orm import Session
 
 from app.core.errors import Conflict, Forbidden, NotFound, SwitchedOff, ValidationFailed
 from app.core.ids import new_id
-from app.core.time import dubai_today, utcnow
+from app.core.time import dubai_date, dubai_today, utcnow
 from app.modules.audit.service import AuditWriteError, record_event
 from app.modules.config.service import get_config, get_rule
 from app.modules.escalation import corpus as corpus_mod
@@ -300,7 +300,7 @@ def open_case(
     case = EscalationCase(
         company_id=company_id, work_item_id=work_item_id, module=module, case_type=module, matter_key=matter_key, matter_key_rule_version=matter_key_rule_version,
         trigger_rule_id=trigger_rule_id, trigger_rule_version=trigger_rule_version, trigger_event_id=event_id, idempotency_key=idem, trigger_source=trigger_source,
-        escalation_reason=reason_code, status="open", flags=flags, priority=priority or _deadline_near(db, due_date, now.date()), queue=QUEUE_FOR_MODULE[module], specialist_type=specialist_type,
+        escalation_reason=reason_code, status="open", flags=flags, priority=priority or _deadline_near(db, due_date, dubai_date(now)), queue=QUEUE_FOR_MODULE[module], specialist_type=specialist_type,
         linked_case_id=linked.case_id if linked else None, opened_by=opened_by, opened_by_key=opened_by_key, title=None if module == "legal" else title, linked_item_id=linked_item_id,
         topic_code=topic_code, due_date=due_date, opened_at=now, escalated_at=now, calendar_version=calendar_version_label(db), is_demo=is_demo, details={k: v for k, v in (details or {}).items() if k not in ("free_text",)},
         legal_route_status="not_routed" if module == "legal" else None,
@@ -466,7 +466,7 @@ def reopen_case(db: Session, principal, case: EscalationCase) -> EscalationCase:
     now = utcnow()
     if case.status == "closed_no_consent":
         window = int(get_config(db, "consent_wait.reopen_window", 30))
-        if case.reopen_until and now.date() > case.reopen_until:
+        if case.reopen_until and dubai_date(now) > case.reopen_until:
             raise Conflict("the reopen window has passed; open a new case", reason_code="REOPEN_WINDOW_PASSED", details={"window_days": window})
         case.status = "awaiting_consent"
         case.closed_at, case.resolution_outcome, case.consent_requested_at, case.consent_decision = None, None, now, None
@@ -784,7 +784,7 @@ def resolve_case(db: Session, principal, case: EscalationCase, *, outcome: str, 
     end_pause(db, case, at=now)
     case.status, case.resolved_at, case.resolution_outcome = "resolved", now, outcome
     case.resolution_limitation = limitation or case.consent_decision == "refused"
-    label = bilingual("supplied_documents_label", date=(supplied_documents_date or now.date()).isoformat()) if case.resolution_limitation else None
+    label = bilingual("supplied_documents_label", date=(supplied_documents_date or dubai_date(now)).isoformat()) if case.resolution_limitation else None
     _log(db, case, "resolved", actor_key=principal.actor_key, actor_role=principal.primary_role(), reason_code=f"outcome_{outcome}", details={"limitation": case.resolution_limitation}, occurred_at=now)
     _log(db, case, "notification_sent", details={"to": "owner", "kind": "resolved"}, category="reminder", occurred_at=now)
     db.flush()
@@ -892,7 +892,7 @@ def run_consent_wait(db: Session, now: datetime | None = None, *, case_id: str |
         if day >= c_close:
             end_pause(db, case, at=now)
             case.status, case.closed_at, case.resolution_outcome = "closed_no_consent", now, "d"
-            case.reopen_until = (now + timedelta(days=reopen_window)).date()
+            case.reopen_until = dubai_date(now + timedelta(days=reopen_window))
             _log(db, case, "closed", reason_code="no_consent", details={"outcome": "d", "reopen_until": case.reopen_until.isoformat(), "text_key": "consent_wait.closed"}, occurred_at=now)
             _log(db, case, "notification_sent", details={"to": "owner", "kind": "closed_no_consent"}, category="reminder", occurred_at=now)
             out["closed"] += 1
@@ -1053,7 +1053,7 @@ def owner_view(db: Session, case: EscalationCase, lang: str) -> dict:
         "consent_needed": case.status == "awaiting_consent", "consent_notice": bilingual("consent_needed") if case.status == "awaiting_consent" else None, "consent_decision": case.consent_decision,
         "requested_scope": (case.details or {}).get("requested_scope", []), "waiting_for_you": paused is not None and paused.reason_code in ("awaiting_owner_information", "awaiting_owner_approval"), "waiting_label": bilingual("status.waiting_for_you") if paused else None,
         "required_action": case.required_action, "reject": {"reason_code": case.reject_reason_code, "note": case.reject_note, "rejected_at": case.rejected_at.isoformat() if case.rejected_at else None} if case.reject_reason_code else None,
-        "resolution_outcome": case.resolution_outcome, "resolution_limitation": case.resolution_limitation, "output_label": bilingual("supplied_documents_label", date=(case.resolved_at or utcnow()).date().isoformat()) if case.resolution_limitation else None,
+        "resolution_outcome": case.resolution_outcome, "resolution_limitation": case.resolution_limitation, "output_label": bilingual("supplied_documents_label", date=dubai_date(case.resolved_at or utcnow()).isoformat()) if case.resolution_limitation else None,
         "closed_no_consent": case.status == "closed_no_consent", "reopen_until": case.reopen_until.isoformat() if case.reopen_until else None, "closed_no_consent_notice": bilingual("consent_wait.closed", days=int(get_config(db, "consent_wait.reopen_window", 30))) if case.status == "closed_no_consent" else None,
         "legal_route_status": case.legal_route_status, "flags": case.flags or [], "is_demo": case.is_demo, "read_only": case.status in CLOSED_STATUSES,
         "activity": [{"type": e.event_type, "at": e.occurred_at.isoformat(), "reason_code": e.reason_code, "rule_version": e.rule_version} for e in events],

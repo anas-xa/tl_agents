@@ -31,7 +31,7 @@ from typing import Any
 from sqlalchemy import select
 from sqlalchemy.orm import Session
 
-from app.core.time import to_dubai
+from app.core.time import dubai_today, to_dubai
 
 DIMS = ("cohort", "wave", "enrolment_basis", "licence_category")
 BASIS_MAP = {"opted_in": "opt_in", "default_on": "default_on_with_opt_out", "opt_in": "opt_in", "default_on_with_opt_out": "default_on_with_opt_out"}
@@ -201,7 +201,7 @@ def _renewal_facts(db: Session, company_dims: dict[str, dict]) -> list[dict]:
         out.append({"key": f"ren-{ev.id}", **dims, "issuing_authority": lic.issuing_authority, "licence_type": lic.licence_type, "prior_expiry": ev.previous_expiry_date, "renewal_completed_at": ev.renewal_completed_at, "raw_status": ev.raw_status or "RENEWED", "block_reason_code": None})
         covered.add((lic.licence_number, ev.previous_expiry_date))
     for lic in lic_by_number.values():
-        if lic.expiry_date and (lic.licence_number, lic.expiry_date) not in covered and lic.expiry_date <= date.today():
+        if lic.expiry_date and (lic.licence_number, lic.expiry_date) not in covered and lic.expiry_date <= dubai_today():
             dims = company_dims.get(lic.company_id or "", {}) or {"licence_category": lic.category or "unknown"}
             out.append({"key": f"exp-{lic.id}", **dims, "issuing_authority": lic.issuing_authority, "licence_type": lic.licence_type, "prior_expiry": lic.expiry_date, "renewal_completed_at": None, "raw_status": lic.raw_status or "", "block_reason_code": None})
     return out

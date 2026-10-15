@@ -23,7 +23,7 @@ from sqlalchemy import func, select
 from sqlalchemy.orm import Session
 
 from app.core.errors import Conflict, Forbidden, NotFound, PlatformError, SwitchedOff, ValidationFailed
-from app.core.time import utcnow
+from app.core.time import dubai_today, utcnow
 from app.modules.audit.service import record_event
 from app.modules.config.service import get_config, rule_params, set_config
 from app.modules.documents.models import (
@@ -312,10 +312,10 @@ def issue_document(db: Session, company_id: str, doc_type: str, source_record: d
     fields.setdefault("company_name", det_names or None)
     fields.setdefault("licence_number", lic_no)
     fields.setdefault("doc_type", {"en": info["label_en"], "ar": info["label_ar"]})
-    fields.setdefault("generated_date", source_record.get("generated_date") or date.today().isoformat())
+    fields.setdefault("generated_date", source_record.get("generated_date") or dubai_today().isoformat())
     title = {"en": info["label_en"], "ar": info["label_ar"]}
     signed = bool(info.get("signature_required"))
-    file_names = {lang: re.sub(r"[^A-Za-z0-9_-]+", "-", f"{doc_type}-{date.today().isoformat()}-{lang}").strip("-") + ".html" for lang in ("en", "ar")}
+    file_names = {lang: re.sub(r"[^A-Za-z0-9_-]+", "-", f"{doc_type}-{dubai_today().isoformat()}-{lang}").strip("-") + ".html" for lang in ("en", "ar")}
     watermark = (source_record.get("watermark") if not official else None) or info.get("watermark") or (None if official else both("ai_draft_label"))
     if not signed:
         texts = [title["en"], title["ar"], file_names["en"], file_names["ar"], *(watermark or {}).values()]
@@ -392,9 +392,9 @@ def build_source_record(db: Session, company_id: str, doc_type: str, *, pack_id:
         rows = []
         if lic:
             rows = [{"label": {"en": "Trade licence expiry", "ar": "انتهاء الرخصة التجارية"}, "text": lic.expiry_date.isoformat() if lic.expiry_date else "—"}, {"label": {"en": "Ejari expiry", "ar": "انتهاء إيجاري"}, "text": lic.ejari_expiry.isoformat() if lic.ejari_expiry else "—"}, {"label": {"en": "Chamber membership", "ar": "عضوية الغرفة"}, "text": lic.chamber_membership_status or "—"}]
-        return {"fields": {"as_of_date": date.today().isoformat(), "rules_status": {"en": "rules to be confirmed by DET", "ar": "القواعد بانتظار تأكيد الدائرة"}}, "lines": rows, "period_key": date.today().isoformat()[:7]}
+        return {"fields": {"as_of_date": dubai_today().isoformat(), "rules_status": {"en": "rules to be confirmed by DET", "ar": "القواعد بانتظار تأكيد الدائرة"}}, "lines": rows, "period_key": dubai_today().isoformat()[:7]}
     if doc_type == "bookkeeping_summary":
-        return {"fields": {"as_of_date": date.today().isoformat(), "basis": {"en": "prepared from supplied data, not audited", "ar": "أُعدّ من البيانات المقدَّمة، غير مدقق"}}, "period_key": date.today().isoformat()[:7]}
+        return {"fields": {"as_of_date": dubai_today().isoformat(), "basis": {"en": "prepared from supplied data, not audited", "ar": "أُعدّ من البيانات المقدَّمة، غير مدقق"}}, "period_key": dubai_today().isoformat()[:7]}
     if doc_type == "audit_working_paper_summary":
         from app.modules.auditagent import workfile as wf
 

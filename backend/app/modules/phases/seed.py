@@ -7,7 +7,7 @@ from datetime import timedelta
 from sqlalchemy import select
 from sqlalchemy.orm import Session
 
-from app.core.time import utcnow
+from app.core.time import dubai_today, utcnow
 from app.modules.config.service import ensure_config, ensure_rule
 from app.modules.phases import service
 from app.modules.phases.models import GateRegisterRow, Increment, IntegrationChecklistRow, IntegrationSwitch
@@ -43,7 +43,7 @@ def _item(item_id: str, en: str, ar: str, item_type: str = "go_live_evidence", t
 
 
 def _done(item: dict, ref: str, owner: str = "Qeonix product owner", approver: str = "lina (product owner)") -> dict:
-    item.update({"owner_name": owner, "owner_role": "qeonix_product_owner", "evidence_reference": ref, "evidence_date": utcnow().date().isoformat(), "approver_identity": approver, "approved_at": utcnow().isoformat(), "tag": None})
+    item.update({"owner_name": owner, "owner_role": "qeonix_product_owner", "evidence_reference": ref, "evidence_date": dubai_today().isoformat(), "approver_identity": approver, "approved_at": utcnow().isoformat(), "tag": None})
     return item
 
 

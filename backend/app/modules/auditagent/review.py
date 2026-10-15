@@ -20,7 +20,7 @@ from sqlalchemy import select
 from sqlalchemy.orm import Session
 
 from app.core.errors import Forbidden, NotFound, ValidationFailed
-from app.core.time import to_dubai, utcnow
+from app.core.time import dubai_today, to_dubai, utcnow
 from app.modules.audit.service import record_event
 from app.modules.auditagent.models import (
     DECISION_TO_STATUS,
@@ -94,7 +94,7 @@ def new_rule_version(db: Session, rule_id: str, *, parameters: dict, change_reas
         raise ValidationFailed("rules tied to VAT or corporate tax need tax specialist approval", reason_code="TAX_SPECIALIST_APPROVAL_REQUIRED")
     n = int(re.sub(r"\D", "", cur.rule_version) or 1) + 1
     cur.is_current = False
-    row = ExceptionRule(rule_id=rule_id, rule_version=f"r{n}", title_en=cur.title_en, title_ar=cur.title_ar, effective_date=date.today(), change_reason=change_reason, owner=owner, approved_by_tax_specialist=approved_by_tax_specialist, sources_read=cur.sources_read, fields_read=cur.fields_read, default_severity=cur.default_severity, parameters={**(cur.parameters or {}), **parameters}, bank_dependent=cur.bank_dependent, legal_anchor=cur.legal_anchor, instrument=cur.instrument, phase=cur.phase, enabled=cur.enabled, label=cur.label, status=cur.status)
+    row = ExceptionRule(rule_id=rule_id, rule_version=f"r{n}", title_en=cur.title_en, title_ar=cur.title_ar, effective_date=dubai_today(), change_reason=change_reason, owner=owner, approved_by_tax_specialist=approved_by_tax_specialist, sources_read=cur.sources_read, fields_read=cur.fields_read, default_severity=cur.default_severity, parameters={**(cur.parameters or {}), **parameters}, bank_dependent=cur.bank_dependent, legal_anchor=cur.legal_anchor, instrument=cur.instrument, phase=cur.phase, enabled=cur.enabled, label=cur.label, status=cur.status)
     db.add(row)
     db.flush()
     record_event(db, event_type="EXCEPTION_RULE_VERSIONED", category="config", subject_type="exception_rule", subject_id=rule_id, details={"rule_version": row.rule_version})
@@ -364,7 +364,7 @@ def default_period(db: Session, company_id: str, today: date | None = None) -> t
 
     co = db.get(Company, company_id)
     m, d = (co.financial_year_end_month, co.financial_year_end_day) if co else (12, 31)
-    today = today or date.today()
+    today = today or dubai_today()
     end = date(today.year, m, d)
     if end < today:
         end = date(today.year + 1, m, d)
@@ -378,7 +378,7 @@ def bank_rules_visible(db: Session, company_id: str) -> bool:
 
 def run_review_cycle(db: Session, company_id: str, *, actor_key: str | None = None, today: date | None = None, period: tuple[date, date, str] | None = None) -> ReviewCycle:
     """Read consented sources in gated batches, evaluate the versioned rules, create or revise flags."""
-    today = today or date.today()
+    today = today or dubai_today()
     ps, pe, pid = period or default_period(db, company_id, today)
     cyc = ReviewCycle(company_id=company_id, period_start=ps, period_end=pe, model_version=model_version())
     db.add(cyc)

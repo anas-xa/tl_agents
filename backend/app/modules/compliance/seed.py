@@ -3,11 +3,10 @@ lead times as configuration, material_fields_v1, and a demo renewal checklist fo
 
 from __future__ import annotations
 
-from datetime import date
-
 from sqlalchemy import select
 from sqlalchemy.orm import Session
 
+from app.core.time import dubai_today
 from app.demo import CO_ALNOOR
 from app.modules.compliance.models import ComplianceDraft, RequirementRule
 from app.modules.compliance.service import LEAD_TIMES_DEFAULT, MATERIAL_FIELDS_V1
@@ -32,7 +31,7 @@ def seed(db: Session) -> None:
             continue
         lt = LEAD_TIMES_DEFAULT.get(rtype) or LEAD_TIMES_DEFAULT["global_default"]
         db.add(RequirementRule(requirement_type=rtype, code=code, title_en=en, title_ar=ar, activity_code=activity, approving_authority=authority, instrument=instr, effective_date=None, confirmation_status=status,
-                               source_reference=instr, last_confirmed=date.today() if status == "confirmed" else None, version="v1", due_soon_days=lt["due_soon"] if status == "confirmed" else None, at_risk_days=lt["at_risk"] if status == "confirmed" else None))
+                               source_reference=instr, last_confirmed=dubai_today() if status == "confirmed" else None, version="v1", due_soon_days=lt["due_soon"] if status == "confirmed" else None, at_risk_days=lt["at_risk"] if status == "confirmed" else None))
     for key, value, status, label, unit in (
         ("compliance.lead_times", LEAD_TIMES_DEFAULT, "provisional", "Phase 1 starting values (licence/Ejari 60/30, global 45/21)", "days"),
         ("compliance.ejari_dependency_days", 30, "confirmed", "settled: at risk whenever Ejari expiry < licence expiry or within 30 days of it", "days"),

@@ -6,13 +6,14 @@ from datetime import date, datetime, timedelta
 
 from sqlalchemy import select
 
+from app.core.time import dubai_today
 from app.modules.audit.models import AuditEvent
 from app.modules.config.service import get_config_entry, get_rule, set_config
 from app.modules.licences.models import Licence, LicenceEvent, LicenceEventOutbox, LicenceHistory
 from tests.conftest import sign_in
 
 SECRET = {"X-DET-Intake-Secret": "det-intake-dev-secret"}
-TODAY = date.today()
+TODAY = dubai_today()
 
 
 def _ev(event_id: str, licence: str, raw_type: str = "RENEWED", *, ref: str | None = None, effective: date | None = None, new_expiry: date | None = None, completed: datetime | None = None, status: str = "ISSUED", authority: str = "DET", ltype: str = "mainland", term_start: date | None = None, **extra) -> dict:

@@ -18,7 +18,7 @@ from sqlalchemy import select
 from sqlalchemy.orm import Session
 
 from app.core.errors import Forbidden, NotFound, ValidationFailed
-from app.core.time import dubai_today, utcnow
+from app.core.time import dubai_date, dubai_today, utcnow
 from app.modules.audit.service import record_event
 from app.modules.companies.models import CompanyRole
 from app.modules.compliance.models import (
@@ -256,11 +256,11 @@ def evaluate(db: Session, company_id: str, *, principal=None, today: date | None
             renew_by = None
         as_of = v.get("as_of")
         if v["source"] == "Ejari":
-            source_line = bi("source.ejari_det", date=as_of.date().isoformat() if as_of else "-")
+            source_line = bi("source.ejari_det", date=dubai_date(as_of).isoformat() if as_of else "-")
         elif v["source"] == "DET":
-            source_line = bi("source.det", date=as_of.date().isoformat() if as_of else "-")
+            source_line = bi("source.det", date=dubai_date(as_of).isoformat() if as_of else "-")
         elif v["source"] == "owner-declared":
-            source_line = bi("source.owner", date=(v.get("declared_at") or as_of or utcnow()).date().isoformat())
+            source_line = bi("source.owner", date=dubai_date(v.get("declared_at") or as_of or utcnow()).isoformat())
         else:
             source_line = None
         card = {

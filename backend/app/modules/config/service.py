@@ -7,6 +7,7 @@ from sqlalchemy import select
 from sqlalchemy.orm import Session
 
 from app.core.errors import NotFound, ValidationFailed
+from app.core.time import dubai_today
 from app.modules.config.models import STATUS_VALUES, ConfigEntry, RuleRegisterEntry
 
 
@@ -68,7 +69,7 @@ def set_config(
         status=status or (current.status if current else "provisional"),
         label=label if label is not None else (current.label if current else None),
         description=description if description is not None else (current.description if current else None),
-        effective_from=effective_from or date.today(),
+        effective_from=effective_from or dubai_today(),
         changed_by=changed_by,
         approved_by=approved_by,
         change_reason=change_reason,

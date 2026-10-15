@@ -8,7 +8,7 @@ from datetime import date, timedelta
 from sqlalchemy import select
 from sqlalchemy.orm import Session
 
-from app.core.time import utcnow
+from app.core.time import dubai_today, utcnow
 from app.demo import CO_ALNOOR, CO_BLUEDUNE, CO_GULFTECH, PERSONA_UUIDS, demo_ct_year, demo_vat_quarters
 from app.modules.access.service import Principal
 from app.modules.audit.service import ensure_identity_mapping
@@ -92,7 +92,7 @@ def seed(db: Session) -> None:
     ensure_rule(db, "vat-due-v1", "VAT return due date: 28 days after the end of the tax period", instrument="Federal Decree-Law No. 8 of 2017 and Cabinet Decision 52 of 2017 (to be confirmed)", status="to_be_confirmed", owner_role="Tax specialist", parameters={"days_after_period_end": 28})
     ensure_rule(db, "ct-due-v1", "Corporate tax return due date: 9 months after the end of the tax period", instrument="Federal Decree-Law No. 47 of 2022 (to be confirmed)", status="to_be_confirmed", owner_role="Tax specialist", parameters={"months_after_period_end": 9})
     if db.scalar(select(RouteHolderRegister).where(RouteHolderRegister.is_current.is_(True))) is None:
-        db.add(RouteHolderRegister(version=1, route_holder="licensed_provider_partner", provider_legal_name=None, cbuae_licence_reference=None, authorised_activities=["account information service"], agreement_signed=False, consent_model={"who_consents": "authorised signatory", "scope": ["accounts", "data types", "purpose", "period"], "revocation": "provider flow; consent identifier mirrored"}, processing_location="to be confirmed (ties to residency register)", revocation_flow="provider revocation flow (to be confirmed)", coverage_confirmed=False, status="to_be_confirmed", label="start value: licensed_provider_partner; coverage unconfirmed; bank link refused until evidence complete", effective_from=date.today()))
+        db.add(RouteHolderRegister(version=1, route_holder="licensed_provider_partner", provider_legal_name=None, cbuae_licence_reference=None, authorised_activities=["account information service"], agreement_signed=False, consent_model={"who_consents": "authorised signatory", "scope": ["accounts", "data types", "purpose", "period"], "revocation": "provider flow; consent identifier mirrored"}, processing_location="to be confirmed (ties to residency register)", revocation_flow="provider revocation flow (to be confirmed)", coverage_confirmed=False, status="to_be_confirmed", label="start value: licensed_provider_partner; coverage unconfirmed; bank link refused until evidence complete", effective_from=dubai_today()))
     for bank_id, en, ar, demo in BANKS:
         if db.get(BankConfig, bank_id) is None:
             db.add(BankConfig(bank_id=bank_id, name_en=en, name_ar=ar, demo=demo, coverage_status="unconfirmed", corporate_account_types_live=[]))

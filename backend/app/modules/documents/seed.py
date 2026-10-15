@@ -7,6 +7,7 @@ from datetime import date
 from sqlalchemy import select
 from sqlalchemy.orm import Session
 
+from app.core.time import dubai_today
 from app.demo import CO_ALNOOR
 from app.modules.config.service import ensure_config, ensure_rule
 from app.modules.documents import service as svc
@@ -49,7 +50,7 @@ def seed_demo(db: Session) -> None:
         return
     actor = _Actor()
     # Superseded + current licence-and-subscription confirmation (the first is kept with status 'superseded').
-    svc.issue_document(db, CO_ALNOOR, "licence_subscription_confirmation", {**svc.build_source_record(db, CO_ALNOOR, "licence_subscription_confirmation"), "generated_date": date.today().replace(day=1).isoformat()}, actor, is_demo=True)
+    svc.issue_document(db, CO_ALNOOR, "licence_subscription_confirmation", {**svc.build_source_record(db, CO_ALNOOR, "licence_subscription_confirmation"), "generated_date": dubai_today().replace(day=1).isoformat()}, actor, is_demo=True)
     svc.issue_document(db, CO_ALNOOR, "licence_subscription_confirmation", svc.build_source_record(db, CO_ALNOOR, "licence_subscription_confirmation"), actor, is_demo=True)
     svc.issue_document(db, CO_ALNOOR, "compliance_status_report", svc.build_source_record(db, CO_ALNOOR, "compliance_status_report"), actor, is_demo=True)
     try:

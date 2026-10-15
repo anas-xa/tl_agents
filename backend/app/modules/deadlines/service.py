@@ -147,7 +147,7 @@ def create_rule(db: Session, payload: dict, *, actor_key: str | None = None) -> 
         entered_by=payload["entered_by"], entered_date=_as_date(payload["entered_date"]), status="draft",
         confirmation_status=payload.get("confirmation_status") or "unconfirmed, source: none", confirmed_by=payload.get("confirmed_by"),
         source_type=payload.get("source_type") or "statutory", display_status=payload.get("display_status") or "statutory date",
-        label=payload.get("label"), last_checked=_as_date(payload.get("last_checked")) or date.today(),
+        label=payload.get("label"), last_checked=_as_date(payload.get("last_checked")) or dubai_today(),
     )
     db.add(row)
     db.add(RuleChange(key=row.key, version=row.version, changed_by=row.entered_by, old_value=None, new_value=row.value, source=row.legal_instrument, confirmed_by=row.confirmed_by, action="created"))

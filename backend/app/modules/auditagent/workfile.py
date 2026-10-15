@@ -19,7 +19,7 @@ from sqlalchemy import select
 from sqlalchemy.orm import Session
 
 from app.core.errors import Conflict, Forbidden, NotFound, ValidationFailed
-from app.core.time import utcnow
+from app.core.time import dubai_today, utcnow
 from app.modules.audit.service import record_event
 from app.modules.auditagent.models import (
     FILE_TRANSITIONS,
@@ -141,7 +141,7 @@ def prepare_working_file(db: Session, company_id: str, *, period: tuple[date, da
     """Prepare (or revise) the draft. Refused run when no consented source exists: no draft, no partial figures."""
     from app.modules.auditagent.review import default_period, source_gate
 
-    today = today or date.today()
+    today = today or dubai_today()
     if period is None:
         ps, pe, _ = default_period(db, company_id, today)
     else:
@@ -292,7 +292,7 @@ def gap_action(db: Session, g: DataGap, *, action: str, actor_name: str, actor_r
     now = utcnow()
     if action == "request":
         g.status, g.assignee_uuid, g.assignee_name = "requested", assignee_uuid, assignee_name
-        g.due_date = due_date or (date.today() + timedelta(days=_int(db, "auditagent.data_request.default_due_days", 7)))
+        g.due_date = due_date or (dubai_today() + timedelta(days=_int(db, "auditagent.data_request.default_due_days", 7)))
     elif action == "provided":
         g.status, g.provided_at = "received", now  # owner notified; revised draft prepared
         record_event(db, event_type="NOTIFICATION_SENT", category="reminder", company_id=g.company_id, subject_type="data_gap", subject_id=g.id, details={"kind": "data_provided", "to": "owner"})
@@ -314,7 +314,7 @@ def gap_action(db: Session, g: DataGap, *, action: str, actor_name: str, actor_r
 
 def run_gap_reminders(db: Session, today: date | None = None) -> int:
     """Reminders on the due date and +3 days, then 'Overdue, no response'; nothing further automatic."""
-    today = today or date.today()
+    today = today or dubai_today()
     plus = _int(db, "auditagent.data_request.second_reminder_days", 3)
     n = 0
     for g in db.scalars(select(DataGap).where(DataGap.status.in_(("requested", "overdue")), DataGap.due_date.is_not(None))):
@@ -395,7 +395,7 @@ def _esc(v: Any) -> str:
 
 def render_export(db: Session, f: AuditWorkingFile, *, lang: str = "en", generated: date | None = None, supplied_documents_only: bool = False) -> str:
     """Watermarked bilingual export (browser prints). Header band EN/AR, page-1 notice, data gaps, footer."""
-    generated = generated or date.today()
+    generated = generated or dubai_today()
     lbl = status_label(db, f)
     gaps = [g for g in gaps_for(db, f) if g.status != "received"]
     rows = []
@@ -424,7 +424,7 @@ def render_export(db: Session, f: AuditWorkingFile, *, lang: str = "en", generat
 
 def k18(db: Session, today: date | None = None) -> dict:
     """Time to prepare audit draft: from period_end to first complete draft (immutable); incomplete reported beside."""
-    today = today or date.today()
+    today = today or dubai_today()
     days, open_ages = [], []
     for f in db.scalars(select(AuditWorkingFile).where(AuditWorkingFile.version_no == 1)):
         if f.period_end > today:

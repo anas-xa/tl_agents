@@ -19,7 +19,7 @@ from sqlalchemy import func, select
 from sqlalchemy.orm import Session
 
 from app.core.errors import Conflict, Forbidden, NotFound, SwitchedOff, ValidationFailed
-from app.core.time import to_dubai, utcnow
+from app.core.time import dubai_today, to_dubai, utcnow
 from app.modules.access.service import (
     DELEGATE_RIGHT_PERMS,
     Principal,
@@ -212,7 +212,7 @@ def _suspend_delegations(db: Session, company_id: str, *, reason: str, granted_b
     for r in db.scalars(stmt):
         r.status = "suspended"
         r.suspended_reason = reason
-        r.reconfirm_by = utcnow().date() + timedelta(days=window)
+        r.reconfirm_by = dubai_today() + timedelta(days=window)
         _change(db, company_id=company_id, change_type="authority_suspended", principal=None, delegate_identity_uuid=r.identity_uuid, delegate_label=_identity_name(db, r.identity_uuid), subject_ref=r.id, reason=reason)
         record_event(db, event_type="DELEGATION_CHANGE", category="access", outcome="info", reason_code="SUSPENDED_AUTHORITY_CHANGED", company_id=company_id, subject_type="company_role", subject_id=r.id, details={"reason": reason})
         _enforce_revocation(db, identity_uuid=r.identity_uuid, company_id=company_id, principal=None, reason=reason, quarantine=False)
@@ -235,7 +235,7 @@ def start_signatory_change_hold(db: Session, company_id: str, *, reason: str = "
     actor = principal.actor_key if principal else None
     record_event(db, event_type="COMPANY_HOLD_STARTED", category="access", actor_key=actor, company_id=company_id, subject_type="company_hold", subject_id=company_id, details={"hold_state": "signatory_change_hold", "reason": reason})
     for prev in db.scalars(select(CompanyRole).where(CompanyRole.company_id == company_id, CompanyRole.role.in_(OWNER_LEVEL), CompanyRole.status == "active")):
-        prev.reconfirm_by = utcnow().date() + timedelta(days=_int(db, "delegate.reconfirmation_window_days", 30))
+        prev.reconfirm_by = dubai_today() + timedelta(days=_int(db, "delegate.reconfirmation_window_days", 30))
         _suspend_delegations(db, company_id, reason="authority_changed", granted_by=prev.identity_uuid)
     fn = _optional("app.modules.consent.service", "suspend_consents_for_hold")
     paused = fn(db, company_id) if fn else 0
@@ -340,7 +340,7 @@ def reconcile_company_authority(db: Session, company_id: str) -> dict:
 def expire_unconfirmed_authority(db: Session, company_id: str | None = None) -> int:
     """Authority not reconfirmed within the window ends (audit keeps history). Last owner-level person is never
     removed by the platform."""
-    today = utcnow().date()
+    today = dubai_today()
     stmt = select(CompanyRole).where(CompanyRole.reconfirm_by.isnot(None), CompanyRole.reconfirm_by < today, CompanyRole.status.in_(("active", "suspended")))
     if company_id:
         stmt = stmt.where(CompanyRole.company_id == company_id)

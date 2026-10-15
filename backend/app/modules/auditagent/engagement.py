@@ -13,7 +13,7 @@ from sqlalchemy import select
 from sqlalchemy.orm import Session
 
 from app.core.errors import Conflict, Forbidden, NotFound, SwitchedOff, ValidationFailed
-from app.core.time import utcnow
+from app.core.time import dubai_date, dubai_today, utcnow
 from app.modules.audit.service import record_event
 from app.modules.auditagent import workfile as wf
 from app.modules.auditagent.models import (
@@ -109,7 +109,7 @@ def check_register(db: Session, identity_uuid: str, *, engagement_id: str | None
     else:
         e = entries[0]
         outcome = STATUS_OUTCOME.get(e.get("status", "unlisted"), "allowed")
-        if outcome == "allowed" and e.get("valid_to") and date.fromisoformat(e["valid_to"]) < now.date():
+        if outcome == "allowed" and e.get("valid_to") and date.fromisoformat(e["valid_to"]) < dubai_date(now):
             outcome = "blocked_expired"
         if outcome == "allowed" and purpose == "sign" and not e.get("signing_authority"):
             outcome = "blocked_no_signing_authority"
@@ -380,7 +380,7 @@ def run_engagement_reminders(db: Session, *, today: date | None = None, now: dat
     """In-portal reminders at 14, 7 and 2 days before the deadline plus a due-date notice (no financial figures);
     escalation to the engagement manager after 3 working days without activity; 7 days before and not under review
     -> preparing team + engagement manager; 2 days unsigned -> DET pilot manager; lapsed -> both, owner told."""
-    today = today or date.today()
+    today = today or dubai_today()
     now = now or utcnow()
     offsets = list(_cfg(db, "auditagent.reminders.before_deadline_days", [14, 7, 2]))
     untouched = float(_cfg(db, "auditagent.escalation.untouched_working_days", 3))

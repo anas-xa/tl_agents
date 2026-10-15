@@ -2,12 +2,12 @@
 
 from __future__ import annotations
 
-from datetime import date, timedelta
+from datetime import timedelta
 
 from sqlalchemy import select
 from sqlalchemy.orm import Session
 
-from app.core.time import utcnow
+from app.core.time import dubai_today, utcnow
 from app.modules.cohorts.models import Cohort, CohortInterest, CohortMembership
 from app.modules.config.service import ensure_config, ensure_rule
 
@@ -59,7 +59,7 @@ def seed_demo(db: Session) -> None:
 
     if db.scalar(select(Cohort).where(Cohort.code == "PILOT1")) is not None:
         return
-    today = date.today()
+    today = dubai_today()
     now = utcnow()
     c1a = Cohort(code="TEST1A", name="Wave 1a internal test (Demo data)", wave="1a", phase="phase1", size_limit=None, start_date=today - timedelta(days=120), modules=["tax", "compliance", "reminders"], selection_criteria={"mainland_only": True}, enrolment_mode="opt_in", status="active", created_by="seed", reason="Demo data", is_demo=True)
     c1b = Cohort(cohort_id="coh_pilot1", code="PILOT1", name="Pilot wave 1 (opt-in)", wave="1b", phase="phase1", size_limit=100, start_date=today - timedelta(days=400), modules=["tax", "audit_preparation", "compliance", "reminders", "escalation"], selection_criteria={"mainland_only": True, "legal_form": ["LLC", "Sole establishment"]}, enrolment_mode="opt_in", status="active", created_by="seed", reason="Demo data", is_demo=True)

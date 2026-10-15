@@ -8,7 +8,7 @@ from sqlalchemy import insert, select
 from sqlalchemy.orm import Session
 
 from app.core.ids import new_id
-from app.core.time import utcnow
+from app.core.time import dubai_today, utcnow
 from app.modules.config.service import ensure_config, ensure_rule
 from app.modules.probes import service
 from app.modules.probes.models import CHECK_TYPES, LANGUAGES, ProbeRecord
@@ -35,7 +35,7 @@ def seed(db: Session) -> None:
             service.ensure_window(db, code="vat_q_deadline", name_en=f"VAT return due {anchor.strftime('%d %B %Y')}", name_ar=f"استحقاق إقرار ضريبة القيمة المضافة {anchor.isoformat()}", window_type="rule_based", start=service.shift_working_days(anchor, -3), end_exclusive=service.shift_working_days(anchor, 3) + timedelta(days=1), anchor=anchor, lead=3, tail=3, reason="VAT due 28th day after period end, +/- 3 working days (estimate)")
         ct = date(y, 9, 30)
         service.ensure_window(db, code="ct_30sep", name_en=f"Corporate tax return due {ct.strftime('%d %B %Y')}", name_ar=f"استحقاق إقرار ضريبة الشركات {ct.isoformat()}", window_type="rule_based", start=service.shift_working_days(ct, -10), end_exclusive=service.shift_working_days(ct, 10) + timedelta(days=1), anchor=ct, lead=10, tail=10, reason="CT due 30 September for calendar-year companies, +/- 10 working days (estimate)")
-    today = utcnow().date()
+    today = dubai_today()
     first_next = (today.replace(day=1) + timedelta(days=32)).replace(day=1)
     service.ensure_window(db, code="renewal_cohort", name_en="Licence-expiry density days (placeholder)", name_ar="أيام كثافة انتهاء الرخص (مؤقت)", window_type="cohort_derived", start=first_next - timedelta(days=5), end_exclusive=first_next, anchor=None, lead=None, tail=None, reason="placeholder: last 5 days of the month until cohort-derived windows (1.5 x daily mean) are computed", placeholder=True)
     db.flush()

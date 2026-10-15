@@ -21,7 +21,7 @@ from sqlalchemy import select
 from sqlalchemy.orm import Session
 
 from app.core.errors import ValidationFailed
-from app.core.time import to_dubai, utcnow
+from app.core.time import dubai_date, to_dubai, utcnow
 from app.modules.audit.service import record_event
 from app.modules.config.service import get_config, rule_params
 from app.modules.licences.models import (
@@ -436,7 +436,7 @@ def licence_dict(db: Session, lic: Licence) -> dict:
         "last_read_at": lic.last_det_refresh_at.isoformat() if lic.last_det_refresh_at else None,
         "stale": is_stale(db, lic, now),
         "freshness_window_hours": freshness_window_hours(db),
-        "days_to_expiry": (lic.expiry_date - now.date()).days if lic.expiry_date else None,
+        "days_to_expiry": (lic.expiry_date - dubai_date(now)).days if lic.expiry_date else None,
         "status_mapping_version": lic.status_mapping_version,
     }
 

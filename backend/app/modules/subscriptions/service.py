@@ -14,7 +14,7 @@ from sqlalchemy.orm import Session
 
 from app.core.errors import Conflict, Forbidden, NotFound, SwitchedOff, ValidationFailed
 from app.core.ids import reference_code
-from app.core.time import DUBAI, utcnow
+from app.core.time import DUBAI, dubai_date, dubai_today, utcnow
 from app.modules.audit.service import record_event
 from app.modules.config.service import get_config
 from app.modules.licences.models import Licence, LicenceEvent, LicenceEventOutbox
@@ -163,7 +163,7 @@ def transition(db: Session, sub: Subscription, to: str, *, actor_key: str | None
     record_event(db, event_type="SUBSCRIPTION_STATE_CHANGED", category="billing", actor_key=actor_key, company_id=sub.company_id, licence_number=sub.licence_number, subject_type="subscription", subject_id=sub.id, reason_code=reason_code, details={"from": sub.status, "to": to})
     sub.status = to
     if to == "ended":
-        sub.ended_on = sub.ended_on or date.today()
+        sub.ended_on = sub.ended_on or dubai_today()
     return sub
 
 
@@ -186,7 +186,7 @@ def create_subscription_for_event(db: Session, ev: LicenceEvent) -> tuple[Subscr
         return None, "licence not in scope, held, unknown or cancelled: never billed"
     if not lic.company_id:
         return None, "licence not linked to a company yet"
-    effective = ev.effective_date or date.today()
+    effective = ev.effective_date or dubai_today()
     # Cohort state at the event's effective date (point-in-time); late processing does not change it.
     try:
         from app.modules.cohorts.service import mark_active, membership_at
@@ -296,8 +296,8 @@ def end_subscription_for_licence_change(db: Session, ev: LicenceEvent) -> int:
         cause = {"cancelled": "licence_cancelled", "suspended": "licence_suspended", "expired": "licence_not_renewed", "transferred": "licence_transferred"}.get(ev.event_type or "", "licence_change")
         if ev.event_type == "expired":
             continue  # expired-in-grace: the subscription runs to its term end; non-renewal is derived at renewal_due_at
-        sub.end_date = min(sub.end_date, ev.effective_date or date.today())
-        sub.ended_cause, sub.ended_on = cause, ev.effective_date or date.today()
+        sub.end_date = min(sub.end_date, ev.effective_date or dubai_today())
+        sub.ended_cause, sub.ended_on = cause, ev.effective_date or dubai_today()
         if sub.status in ("billed", "collected", "active", "paused", "pending_billing", "billing_requested", "held_for_review"):
             if "ended" in TRANSITIONS[sub.status]:
                 transition(db, sub, "ended", actor_key=None, reason_code=cause)
@@ -530,7 +530,7 @@ def _allocate(db: Session, pe: PaymentEvent, reference: str | None, actor_key: s
 
 def apply_unpaid_grace(db: Session, sub: Subscription, req: BillingRequest | None, today: date | None = None) -> None:
     """Unpaid after notice + grace (provisional 30 days): smart services read-only; the licence is never affected."""
-    today = today or date.today()
+    today = today or dubai_today()
     grace_days = int(get_config(db, "unpaid.grace_period_days", 30) or 30)
     if req is not None and req.status == "billed" and req.collection_status in ("not_collected", "failed", "partially_collected") and req.invoice_date:
         sub.grace_until = req.invoice_date + timedelta(days=grace_days)
@@ -550,7 +550,7 @@ def get_opt_out_state(db: Session, subscription_id: str) -> str:
     if db.scalar(select(Case).where(Case.subscription_id == subscription_id, Case.action_family == "opt_out", Case.state == "applied")) is not None:
         return "opted_out"
     window = (opt_out_config(db).get("opt_out_window_days") or {})
-    if window.get("status") == "confirmed" and window.get("value") is not None and (date.today() - sub.start_date).days > int(window["value"]):
+    if window.get("status") == "confirmed" and window.get("value") is not None and (dubai_today() - sub.start_date).days > int(window["value"]):
         return "none"
     return "window_open"
 
@@ -600,7 +600,7 @@ def det_case_decision(db: Session, case: Case, *, decision: str, actor_key: str,
     late = case.state == "needs_DET_action"
     sub = db.get(Subscription, case.subscription_id)
     if decision == "confirm":
-        case.state, case.det_instruction_state, case.effective_at = "applied", "confirmed", effective_at or date.today()
+        case.state, case.det_instruction_state, case.effective_at = "applied", "confirmed", effective_at or dubai_today()
         if case.action == "opt_out" and sub is not None:
             if sub.status in ("pending_billing", "billing_requested"):
                 transition(db, sub, "cancelled_by_opt_out", actor_key=actor_key, reason_code="opt_out_confirmed")
@@ -651,7 +651,7 @@ def open_complaint(db: Session, *, company_id: str, licence_number: str | None, 
     sla = int(get_config(db, "complaint.reply_period_working_days", 5) or 5)
     received = utcnow()
     k4 = next((bool(c.get("k4")) for c in categories if c["code"] == category), True)
-    row = Complaint(reference=reference_code(), company_id=company_id, licence_number=licence_number, subscription_id=subscription_id, category=category, description=description.strip(), preferred_language=preferred_language, contact_channel=contact_channel, related_module=related_module, related_date=related_date, received_at=received, reply_by=add_working_days(received.date(), sla), filed_by_key=actor_key, filed_by_role=actor_role, filed_for_owner=actor_role == "delegate", escalation_flag=any(k in description.lower() for k in ("bank", "consent", "approval", "identity", "emirates id")), k4_eligible=k4, sla_working_days=sla)
+    row = Complaint(reference=reference_code(), company_id=company_id, licence_number=licence_number, subscription_id=subscription_id, category=category, description=description.strip(), preferred_language=preferred_language, contact_channel=contact_channel, related_module=related_module, related_date=related_date, received_at=received, reply_by=add_working_days(dubai_date(received), sla), filed_by_key=actor_key, filed_by_role=actor_role, filed_for_owner=actor_role == "delegate", escalation_flag=any(k in description.lower() for k in ("bank", "consent", "approval", "identity", "emirates id")), k4_eligible=k4, sla_working_days=sla)
     db.add(row)
     db.flush()
     record_event(db, event_type="COMPLAINT_RECEIVED", category="escalation", actor_key=actor_key, actor_role=actor_role, company_id=company_id, licence_number=licence_number, subject_type="complaint", subject_id=row.id, details={"category": category, "reply_by": row.reply_by.isoformat(), "sla_working_days": sla, "escalation_flag": row.escalation_flag})

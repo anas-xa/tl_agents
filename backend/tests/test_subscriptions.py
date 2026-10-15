@@ -10,6 +10,7 @@ import pytest
 from sqlalchemy import select
 
 from app.core.errors import Conflict
+from app.core.time import dubai_today
 from app.modules.audit.models import AuditEvent
 from app.modules.config.service import get_config, get_config_entry, set_config
 from app.modules.subscriptions import service
@@ -351,7 +352,7 @@ def test_complaint_sla_and_handler_queue(client, db):
     assert r.status_code == 200, r.text
     c = r.json()["complaint"]
     assert c["status"] == "received" and c["sla_working_days"] == 5
-    assert date.fromisoformat(c["reply_by"]) == service.add_working_days(date.today(), 5)
+    assert date.fromisoformat(c["reply_by"]) == service.add_working_days(dubai_today(), 5)
     assert date.fromisoformat(c["reply_by"]).weekday() < 5
     assert client.post("/api/companies/co_alnoor/complaints", json={"category": "bogus", "description": "x"}).status_code == 422
     assert client.get("/api/det/complaints").status_code == 403

@@ -15,7 +15,7 @@ from sqlalchemy.orm import Session
 from app.core.errors import Conflict, Forbidden, NotFound, SwitchedOff, ValidationFailed
 from app.core.ids import new_id
 from app.core.settings import get_settings
-from app.core.time import to_dubai, utcnow
+from app.core.time import dubai_today, to_dubai, utcnow
 from app.modules.access.service import Principal
 from app.modules.audit.service import record_event
 from app.modules.config.service import get_config, rule_params
@@ -154,7 +154,7 @@ def enqueue_scheduled_pulls(db: Session, company_id: str, *, actor_key: str | No
             decision = check_consent(db, company_id, "bank_data_open_finance", {"source": "bank", "data_type": "transactions", "account_id": acct.get("account_ref"), "purpose": "bookkeeping_classification"}, actor_key=actor_key)
             if not decision.allowed:
                 continue
-            job = PullJob(company_id=company_id, link_id=link.link_id, consent_id=decision.consent_id or "", consent_version=decision.version or 1, account_id=acct.get("account_ref"), scheduled_for=utcnow(), window_end=utcnow().date())
+            job = PullJob(company_id=company_id, link_id=link.link_id, consent_id=decision.consent_id or "", consent_version=decision.version or 1, account_id=acct.get("account_ref"), scheduled_for=utcnow(), window_end=dubai_today())
             db.add(job)
             jobs.append(job)
     db.flush()
@@ -452,7 +452,7 @@ def delete_upload(db: Session, principal: Principal, upload: StatementUpload) ->
 
 def serialize_upload(db: Session, u: StatementUpload, lang: str = "en") -> dict:
     amber = int(get_config(db, "datalinks.upload.statement_age_amber_days", 35) or 35)
-    age_days = (utcnow().date() - u.period_end).days if u.period_end else None
+    age_days = (dubai_today() - u.period_end).days if u.period_end else None
     return {
         "upload_id": u.upload_id,
         "kind": u.kind,
@@ -509,7 +509,7 @@ def manual_data_age(db: Session, company_id: str) -> dict:
     latest_upload = db.scalar(select(func.max(StatementUpload.uploaded_at)).where(StatementUpload.company_id == company_id, StatementUpload.status == "ready"))
     amber = int(get_config(db, "datalinks.upload.statement_age_amber_days", 35) or 35)
     reminder = int(get_config(db, "datalinks.links.manual_upload_reminder_days", 35) or 35)
-    age = (utcnow().date() - latest).days if latest else None
+    age = (dubai_today() - latest).days if latest else None
     upload_age = (utcnow() - latest_upload).days if latest_upload else None
     return {"latest_statement_end": latest.isoformat() if latest else None, "latest_upload_at": latest_upload.isoformat() if latest_upload else None, "manual_data_age_days": age, "upload_age_days": upload_age, "badge": None if age is None else ("update_due" if age >= amber else "neutral"), "amber_days": amber, "reminder_due": upload_age is not None and upload_age >= reminder}
 

@@ -19,7 +19,7 @@ from sqlalchemy import select
 from sqlalchemy.orm import Session
 
 from app.core.errors import Forbidden, NotFound, SwitchedOff, ValidationFailed
-from app.core.time import utcnow
+from app.core.time import dubai_today, utcnow
 from app.modules.audit.service import record_event
 from app.modules.auditagent.models import (
     DISPUTE_CODES,
@@ -150,7 +150,7 @@ def _verified_tax_group(db: Session, company_id: str) -> str | None:
 
 
 def resolve_inputs(db: Session, company_id: str, *, today: date | None = None) -> dict:
-    today = today or date.today()
+    today = today or dubai_today()
     inp = db.get(AuditInputs, company_id)
     prof = _tax_profile(db, company_id)
     out: dict[str, Any] = {"has_profile": bool(inp or prof), "notes": []}

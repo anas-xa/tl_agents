@@ -8,7 +8,7 @@ from datetime import date, timedelta
 from sqlalchemy import select
 from sqlalchemy.orm import Session
 
-from app.core.time import utcnow
+from app.core.time import dubai_today, utcnow
 from app.modules.config.service import ensure_config, ensure_rule
 from app.modules.escalation.models import (
     CaseAccessGrant,
@@ -223,7 +223,7 @@ def seed_demo(db: Session) -> None:
     )
     from app.modules.escalation.calendar import calendar_version_label
 
-    today = date.today()
+    today = dubai_today()
     ents = [
         dict(identity_uuid=PERSONA_UUIDS["hassan"], specialist_type="tax", register_used="FTA Tax Agent list / operator contract (review-only)", reference_number="TAA-3310", status="active", valid_to=date(today.year + 1, 12, 31), checked_by="Qeonix engagement manager", checked_on=today - timedelta(days=20), jurisdiction="onshore Dubai", firm_agreement_signed=True, review_only=True),
         dict(identity_uuid=PERSONA_UUIDS["mariam"], specialist_type="lawyer", register_used="Legal Affairs Department licence (route switched off)", reference_number="LAD-0871", status="active", valid_to=date(today.year + 1, 6, 30), checked_by="Qeonix engagement manager", checked_on=today - timedelta(days=20), jurisdiction="onshore Dubai", firm_agreement_signed=False, review_only=True),

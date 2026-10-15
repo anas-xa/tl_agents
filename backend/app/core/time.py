@@ -26,3 +26,8 @@ def days_between(a: date, b: date) -> int:
 
 def plus_days(d: date, n: int) -> date:
     return d + timedelta(days=n)
+
+
+def dubai_date(dt: datetime) -> date:
+    """Calendar day in Asia/Dubai for a naive UTC timestamp (deadlines, windows and ages use the Dubai day)."""
+    return to_dubai(dt).date()

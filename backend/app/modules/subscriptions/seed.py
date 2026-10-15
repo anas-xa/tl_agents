@@ -8,7 +8,7 @@ from datetime import date, datetime, timedelta
 from sqlalchemy import select
 from sqlalchemy.orm import Session
 
-from app.core.time import utcnow
+from app.core.time import dubai_date, dubai_today, utcnow
 from app.modules.config.service import ensure_config, ensure_rule
 from app.modules.subscriptions.models import (
     BillingRequest,
@@ -138,7 +138,7 @@ def seed_demo(db: Session) -> None:
 
     if db.scalar(select(Subscription).where(Subscription.id == "sub_alnoor")) is not None:
         return
-    today = date.today()
+    today = dubai_today()
     now = utcnow()
 
     def make(sid: str, licence: str, lic_id: str, company: str, basis: str, cohort_reg: str, cohort_code: str, start: date, end: date, status: str, event_id: str, ref: str, **extra) -> Subscription:
@@ -174,5 +174,5 @@ def seed_demo(db: Session) -> None:
     db.add(PaymentEvent(id="pay_safwa_fail", payment_transaction_id="PTX-SF-FAIL-0001", amount_fils=sf.gross_fils, type="failure", billing_line_id="DETBL-SF-0001", invoice_id="DETINV-SF-2024-0042", allocation_status="no_allocation_failed", channel="DET online payment (stub)", source_timestamp=sf.created_at + timedelta(days=3), received_at=sf.created_at + timedelta(days=3)))
     db.add(Case(id="case_safwa_refund", subscription_id=sf.id, company_id=CO_SAFWA, action="refund", action_family="refund", terms_version="terms-v1", request_id="demo-req-sf-1", idempotency_key=f"{sf.id}+refund+terms-v1+case_safwa_refund", reason_code="charged_in_error", reason_config_version="reasons-v1", state="pending_DET", received_at=now - timedelta(days=4), actor_key="demo-owner-safwa", actor_role="owner", language_shown="ar", notice_version_shown="notice-v1", identity_assurance_level="SOP3", reference_code="DEMO4R7K", det_instruction_state="sent", det_instruction_sent_at=now - timedelta(days=4)))
     received = now - timedelta(days=2)
-    db.add(Complaint(id="cmp_alnoor_1", reference="DEMOC2X9", company_id=CO_ALNOOR, licence_number="DET-1023456", subscription_id="sub_alnoor", category="charge", description="Demo data: the subscription line appeared on my invoice before I expected it.", preferred_language="ar", contact_channel="portal", received_at=received, reply_by=add_working_days(received.date(), 5), status="in_review", status_reason_code="under_review", filed_by_key="demo-owner-alnoor", filed_by_role="owner", k4_eligible=True, sla_working_days=5))
+    db.add(Complaint(id="cmp_alnoor_1", reference="DEMOC2X9", company_id=CO_ALNOOR, licence_number="DET-1023456", subscription_id="sub_alnoor", category="charge", description="Demo data: the subscription line appeared on my invoice before I expected it.", preferred_language="ar", contact_channel="portal", received_at=received, reply_by=add_working_days(dubai_date(received), 5), status="in_review", status_reason_code="under_review", filed_by_key="demo-owner-alnoor", filed_by_role="owner", k4_eligible=True, sla_working_days=5))
     db.flush()

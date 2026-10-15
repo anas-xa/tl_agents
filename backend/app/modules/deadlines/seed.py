@@ -63,7 +63,7 @@ RULE_VERSION = "2026.10"
 
 
 def seed(db: Session) -> None:
-    today = date.today()
+    today = dubai_today()
     for r in RULES:
         if db.scalar(select(DeadlineRule).where(DeadlineRule.key == r["key"], DeadlineRule.version == RULE_VERSION)) is not None:
             continue

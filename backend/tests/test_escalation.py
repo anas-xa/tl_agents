@@ -7,6 +7,7 @@ from datetime import date, datetime, timedelta
 import pytest
 from sqlalchemy import select
 
+from app.core.time import dubai_date, dubai_today
 from app.demo import CO_ALNOOR, CO_BLUEDUNE, PERSONA_UUIDS
 from app.modules.audit.models import AuditEvent
 from app.modules.escalation import service as svc
@@ -36,11 +37,11 @@ def test_rule_set_v1_triggers_route_by_module_and_record_version(db):
     assert db.get(EscalationCase, r3["case_id"]).escalation_reason == "audit_signoff_required"
     r4 = svc.evaluate_triggers(db, CO_ALNOOR, {"event_id": "e4", "filing_blocked": True, "return_type": "VAT", "tax_period": "2026Q3"})
     assert db.get(EscalationCase, r4["case_id"]).module == "tax"
-    due = (date.today() + timedelta(days=10)).isoformat()
+    due = (dubai_today() + timedelta(days=10)).isoformat()
     r5 = svc.evaluate_triggers(db, CO_ALNOOR, {"event_id": "e5", "deadline_type": "vat", "due_date": due, "licence_number": "DET-1023456", "requirement_code": "VAT_RETURN", "due_period": "2026Q3"})
     c5 = db.get(EscalationCase, r5["case_id"])
     assert c5.module == "compliance" and c5.queue == "det_compliance" and c5.priority == "deadline_near"
-    far = (date.today() + timedelta(days=20)).isoformat()
+    far = (dubai_today() + timedelta(days=20)).isoformat()
     assert svc.evaluate_triggers(db, CO_ALNOOR, {"event_id": "e6", "deadline_type": "vat", "due_date": far, "licence_number": "x", "requirement_code": "y", "due_period": "z"})["decision"] == "no_trigger"
     assert svc.evaluate_triggers(db, CO_ALNOOR, {"event_id": "e7", "deadline_type": "corporate_tax", "due_date": far, "licence_number": "x", "requirement_code": "CT", "due_period": "FY2025"})["decision"] == "escalate"
     r8 = svc.evaluate_triggers(db, CO_ALNOOR, {"event_id": "e8", "legal_type_request": True, "title": "should not be stored", "topic_code": "legal_request"})
@@ -241,10 +242,10 @@ def test_entitlement_fail_closed_at_assignment_and_access(client, db):
     sign_in(client, "hassan")
     r = client.post(f"/api/cases/{case_id}/accept", json={})
     assert r.status_code == 403 and r.json()["error"] == "ENTITLEMENT_UNCLEAR"
-    ent.status, ent.valid_to = "active", date.today() - timedelta(days=1)
+    ent.status, ent.valid_to = "active", dubai_today() - timedelta(days=1)
     db.commit()
     assert client.post(f"/api/cases/{case_id}/accept", json={}).json()["error"] == "ENTITLEMENT_EXPIRED"
-    ent.valid_to = date.today() + timedelta(days=365)
+    ent.valid_to = dubai_today() + timedelta(days=365)
     db.commit()
     assert client.post(f"/api/cases/{case_id}/accept", json={}).status_code == 200
     # ops assigns/reassigns (metadata only) and every ops view is logged; a non-assigned specialist is refused
@@ -292,7 +293,7 @@ def test_consent_wait_timeline_closes_day_14_and_reopens_within_30(client, db):
     r = svc.run_consent_wait(db, now=t0 + timedelta(days=14), case_id=case_id)
     db.commit()
     db.refresh(case)
-    assert r["closed"] == 1 and case.status == "closed_no_consent" and case.resolution_outcome == "d" and case.reopen_until == (t0 + timedelta(days=44)).date()
+    assert r["closed"] == 1 and case.status == "closed_no_consent" and case.resolution_outcome == "d" and case.reopen_until == dubai_date(t0 + timedelta(days=44))
     assert case.assigned_to is not None  # never auto-reassigned
     sign_in(client, "khalid")
     v = client.get(f"/api/companies/{CO_ALNOOR}/cases/{case_id}").json()
@@ -301,7 +302,7 @@ def test_consent_wait_timeline_closes_day_14_and_reopens_within_30(client, db):
     assert r.status_code == 200 and r.json()["case_id"] == case_id and r.json()["status"] == "awaiting_consent"
     case = db.get(EscalationCase, case_id)
     db.refresh(case)
-    case.status, case.reopen_until = "closed_no_consent", date.today() - timedelta(days=1)
+    case.status, case.reopen_until = "closed_no_consent", dubai_today() - timedelta(days=1)
     db.commit()
     r = client.post(f"/api/companies/{CO_ALNOOR}/cases/{case_id}/reopen")
     assert r.status_code == 409 and r.json()["error"] == "REOPEN_WINDOW_PASSED"

@@ -7,7 +7,7 @@ from datetime import date, datetime, time, timedelta
 from sqlalchemy import select
 from sqlalchemy.orm import Session
 
-from app.core.time import utcnow
+from app.core.time import dubai_today, utcnow
 from app.modules.config.service import ensure_config, ensure_rule
 from app.modules.licences.models import Licence, LicenceEvent, LicenceEventOutbox
 
@@ -61,7 +61,7 @@ def seed_demo(db: Session) -> None:
 
     if db.scalar(select(LicenceEvent).where(LicenceEvent.event_id == "DEMO-EV-ALNOOR-REN-1")) is not None:
         return
-    today = date.today()
+    today = dubai_today()
     alnoor = db.get(Licence, "lic_alnoor")
     bluedune = db.get(Licence, "lic_bluedune")
     safwa = db.get(Licence, "lic_safwa")

@@ -12,6 +12,7 @@ import unicodedata
 from dataclasses import dataclass, field
 from datetime import date
 
+from app.core.time import dubai_today
 from app.modules.escalation.models import CorpusPassage
 
 STOPWORDS_EN = {
@@ -87,7 +88,7 @@ class Retrieval:
 
 def retrieve(question: str, passages: list[CorpusPassage], *, on: date | None = None, limit: int = 5) -> list[Retrieval]:
     """Score every in-force answer-source passage by content-token overlap; deterministic ordering."""
-    on = on or date.today()
+    on = on or dubai_today()
     q = content_tokens(question)
     if not q:
         return []
@@ -113,7 +114,7 @@ def retrieve(question: str, passages: list[CorpusPassage], *, on: date | None = 
 def detect_conflict(best: CorpusPassage, passages: list[CorpusPassage], *, on: date | None = None) -> bool:
     """Two in-force passages with the same subject, condition and taxpayer category, overlapping
     effective periods, different values and no supersedes link → conflict. Superseded without a successor → conflict."""
-    on = on or date.today()
+    on = on or dubai_today()
     if best.status == "superseded" and not any(p.supersedes == best.passage_id for p in passages):
         return True
     for other in passages:

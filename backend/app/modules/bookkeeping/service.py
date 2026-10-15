@@ -15,7 +15,7 @@ from sqlalchemy import select
 from sqlalchemy.orm import Session
 
 from app.core.errors import Conflict, Forbidden, NotFound, ValidationFailed
-from app.core.time import to_dubai, utcnow
+from app.core.time import dubai_today, to_dubai, utcnow
 from app.modules.audit.service import record_event
 from app.modules.bookkeeping.models import (
     ChartAccount,
@@ -554,7 +554,7 @@ def bulk_accept(db: Session, company_id: str, principal: Any, ids: list[str] | N
 
 def quarantine_drafts_for(db: Session, identity_uuid: str, company_id: str, *, removed_on: date | None = None, display_name: str | None = None) -> int:
     """Called by the delegate module when rights are removed: every draft the delegate touched is quarantined."""
-    removed_on = removed_on or utcnow().date()
+    removed_on = removed_on or dubai_today()
     n = 0
     for cls in db.scalars(select(Classification).where(Classification.company_id == company_id, Classification.made_by_uuid == identity_uuid, Classification.status.in_(("proposed", "needs_review", "draft_not_posted")))):
         cls.status = "quarantined"
@@ -876,7 +876,7 @@ def evaluate_completeness(db: Session, company_id: str, return_type: str, period
     passed = not mandatory_missing
     blocked = False
     x = get_config(db, "bookkeeping.dc_v1.deadline_minus_days", None)
-    if not passed and deadline and x is not None and utcnow().date() >= deadline - timedelta(days=int(x)):
+    if not passed and deadline and x is not None and dubai_today() >= deadline - timedelta(days=int(x)):
         blocked = True
     check = DataCompleteCheck(company_id=company_id, return_type=return_type, period_id=period_id, version="dc-v1", missing_items=missing, passed=passed, blocked_missing_data=blocked)
     db.add(check)

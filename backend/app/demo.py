@@ -129,7 +129,7 @@ def seed_demo(db: Session) -> None:
             fn(db)
         run_demo_seeds(db)
         return
-    today = date.today()
+    today = dubai_today()
     companies = [
         Company(id=CO_ALNOOR, trade_name_en="Al Noor Trading LLC", trade_name_ar="النور للتجارة ذ.م.م", legal_form="LLC", owner_location_self_declared="uae", onboarding_at=utcnow() - timedelta(days=40), onboarding_id="onb_alnoor_1"),
         Company(id=CO_BLUEDUNE, trade_name_en="Blue Dune Consultancy", trade_name_ar="بلو ديون للاستشارات", legal_form="Sole establishment", owner_location_self_declared="abroad", onboarding_at=utcnow() - timedelta(days=20), onboarding_id="onb_bluedune_1"),

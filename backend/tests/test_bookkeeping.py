@@ -8,6 +8,7 @@ from datetime import date, timedelta
 
 from sqlalchemy import select
 
+from app.core.time import dubai_today
 from app.demo import CO_ALNOOR, CO_BLUEDUNE, CO_GULFTECH, PERSONA_UUIDS, demo_vat_quarters
 from app.modules.audit.models import AuditEvent
 from app.modules.bookkeeping import service as svc
@@ -260,7 +261,7 @@ def test_k17_missing_items_name_who_and_action_and_blocked_only_when_configured(
     assert "trn" in keys and keys["trn"]["owner_only"] is True and keys["trn"]["action"] and keys["trn"]["why"]
     assert check.passed is False and check.blocked_missing_data is False and check.version == "dc-v1"
     set_config(db, "bookkeeping.dc_v1.deadline_minus_days", 5, changed_by="test")
-    check = svc.evaluate_completeness(db, CO_BLUEDUNE, "vat", OPEN, facts={"trn": False}, deadline=date.today())
+    check = svc.evaluate_completeness(db, CO_BLUEDUNE, "vat", OPEN, facts={"trn": False}, deadline=dubai_today())
     assert check.blocked_missing_data is True
 
 

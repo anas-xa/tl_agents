@@ -19,7 +19,7 @@ from sqlalchemy.orm import Session
 
 from app.core.errors import Conflict, Forbidden, NotFound, PlatformError, SwitchedOff, ValidationFailed
 from app.core.ids import new_id
-from app.core.time import to_dubai, utcnow
+from app.core.time import dubai_date, to_dubai, utcnow
 from app.modules.access.service import Principal, delegate_right_enabled, permissions_for, require_step_up
 from app.modules.audit.service import AuditWriteError, record_event
 from app.modules.companies.models import Company, CompanyRole
@@ -796,7 +796,7 @@ def run_lifecycle(db: Session, company_id: str | None = None, *, now: datetime |
                 if days_left == off:
                     out["notices"] += notify(db, company_id=c.company_id, recipients=holders + delegates_with_consent_right(db, c.company_id), kind=f"consent_expiry_{off}d", template_key="notice.consent_expiry", subject_type="consent", subject_id=c.consent_id, params={"company": cname, "date": _fmt_dubai(c.expires_at, "en")}, dedupe_key=f"expiry:{c.consent_id}:{off}")
             if lic["expiry_date"]:
-                lic_days = (lic["expiry_date"] - now.date()).days
+                lic_days = (lic["expiry_date"] - dubai_date(now)).days
                 for off in notice_offsets:
                     if lic_days == off:
                         out["notices"] += notify(db, company_id=c.company_id, recipients=holders, kind=f"licence_expiry_{off}d", template_key="notice.licence_expiry", subject_type="licence", subject_id=lic["licence_number"], params={"company": cname, "date": str(lic["expiry_date"])}, dedupe_key=f"licence_expiry:{c.company_id}:{lic['expiry_date']}:{off}")

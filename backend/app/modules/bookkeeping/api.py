@@ -9,6 +9,7 @@ from sqlalchemy.orm import Session
 from app.api.deps import get_principal, require
 from app.core.db import get_db
 from app.core.errors import Forbidden
+from app.core.time import dubai_today
 from app.modules.access.service import STAFF_PERMS, Principal, authorize, require_company_access
 from app.modules.audit.service import record_event
 from app.modules.bookkeeping import service as svc
@@ -46,7 +47,7 @@ def list_transactions(company_id: str, status: str | None = None, period: str | 
 def reference(company_id: str, on: str | None = None, principal: Principal = Depends(require("tax.view")), db: Session = Depends(get_db)):
     from datetime import date
 
-    d = date.fromisoformat(on) if on else date.today()
+    d = date.fromisoformat(on) if on else dubai_today()
     return {
         "categories": list(svc.CATEGORIES),
         "vat_codes": [{"code": v.code, "name_en": v.name_en, "name_ar": v.name_ar, "gloss_en": v.gloss_en, "gloss_ar": v.gloss_ar, "rate_percent": v.rate_percent, "return_box_ref": v.return_box_ref, "version_id": v.version_id, "status_label": v.status_label, "instrument_ref": v.instrument_ref} for v in svc.vat_codes_effective(db, d)],
