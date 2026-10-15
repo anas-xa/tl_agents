@@ -8,7 +8,7 @@ from sqlalchemy import select
 from sqlalchemy.orm import Session
 
 from app.core.time import utcnow
-from app.demo import CO_ALNOOR, CO_BLUEDUNE, CO_GULFTECH, PERSONA_UUIDS
+from app.demo import CO_ALNOOR, CO_BLUEDUNE, CO_GULFTECH, PERSONA_UUIDS, demo_ct_year, demo_vat_quarters
 from app.modules.auditagent import engagement as eng_svc
 from app.modules.auditagent import indicator as ind
 from app.modules.auditagent import review as rv
@@ -130,7 +130,8 @@ def _fixture_row(record_id: str, d: str, amount: int, cp: str, desc: str, **kw) 
 def seed_demo(db: Session) -> None:
     if db.scalar(select(ExceptionFlag.id).where(ExceptionFlag.company_id == CO_ALNOOR, ExceptionFlag.is_demo.is_(True)).limit(1)) is not None:
         return
-    today = date.today()
+    quarters, ct = demo_vat_quarters(), demo_ct_year()
+    today = quarters.today
     # --- Al Noor: likely_not_required; three exceptions (New, Confirmed, Dismissed); incomplete working file.
     ind.evaluate(db, CO_ALNOOR, cause="demo_seed", is_demo=True)
     ledger = {r["description"]: r for r in rv.ledger_records(db, CO_ALNOOR)}
@@ -142,7 +143,7 @@ def seed_demo(db: Session) -> None:
     specs = [
         ("AX02", pick("Purchase PO-2211"), "vat_amount_mismatch", "vat_check", None),
         ("AX01b", pick("Purchase PO-2219", "Purchase PO-2230"), "same_counterparty_amount_within_window", "possible_duplicate", ("confirm", "Two supplier payments look alike; checked with Gulf Supplies, one is a reissue.")),
-        ("AX06", pick("Ejari rent Q3 Business Bay"), "round_amount_period_edge", "unusual_pattern", ("dismiss", "Quarterly rent is a fixed contractual amount, not a manual journal.")),
+        ("AX06", pick(f"Ejari rent Q{quarters.open.period_id[-1]} Business Bay"), "round_amount_period_edge", "unusual_pattern", ("dismiss", "Quarterly rent is a fixed contractual amount, not a manual journal.")),
     ]
     khalid = _Actor(PERSONA_UUIDS["khalid"], "Khalid Al Mansoori")
     for rule_id, recs, reason, ftype, decision in specs:
@@ -159,7 +160,7 @@ def seed_demo(db: Session) -> None:
     if f is not None:
         f.is_demo = True
     # --- Gulf Tech: declared tax group -> likely_required; complete_with_exceptions file; engagement for layla.
-    fy = (date(today.year - 1, 1, 1), date(today.year - 1, 12, 31))
+    fy = (ct.start, ct.end)  # the demo financial year (most recent year that has ended)
     if db.get(AuditInputs, CO_GULFTECH) is None:
         db.add(AuditInputs(company_id=CO_GULFTECH, period_start=fy[0], period_end=fy[1], period_confirmed=True, tax_group_member="yes", tax_group_state="self_declared_unverified", qfzp="not_applicable", declared_by="Gulf Tech owner (Demo data)", declared_by_role="owner", declared_at=utcnow(), owner_confirmed=True, is_demo=True))
         db.add(AuditRevenueFigure(company_id=CO_GULFTECH, period_start=fy[0], period_end=fy[1], source="owner_declared", amount_fils=12_400_000 * AED, covers_full_period=True, owner_confirmed=True, entered_by="Gulf Tech owner (Demo data)", is_demo=True))

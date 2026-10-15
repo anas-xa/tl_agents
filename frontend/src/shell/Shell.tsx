@@ -45,7 +45,9 @@ export function Shell() {
     if (n.scope === 'staff') return !!n.permission && me.staff_permissions.includes(n.permission)
     if (n.scope === 'company') return !!companyId && (!n.permission || can(n.permission, companyId))
     return true
-  }).sort((a, b) => a.order - b.order)
+  })
+    .filter((n, i, all) => all.findIndex((m) => m.path === n.path) === i) // one entry per path even if several permissions grant it
+    .sort((a, b) => a.order - b.order)
 
   const roleLabel = company ? company.roles.map((r) => t(`roles.${r}`)).join(', ') : me.staff_roles.map((r) => t(`roles.${r}`)).join(', ')
   const companyName = company ? (t('lang.ar') === 'العربية' && document.documentElement.lang === 'ar' ? company.trade_name_ar : company.trade_name_en) : ''

@@ -5,13 +5,15 @@ Loaded by ``scripts/seed_demo.py`` and by the test-suite. Feature modules extend
 
 from __future__ import annotations
 
+import calendar
 from collections.abc import Callable
+from dataclasses import dataclass
 from datetime import date, timedelta
 
 from sqlalchemy import select
 from sqlalchemy.orm import Session
 
-from app.core.time import utcnow
+from app.core.time import dubai_today, utcnow
 from app.modules.companies.models import Company, CompanyRole
 from app.modules.identity.models import StaffRole
 from app.modules.identity.service import hash_emirates_id
@@ -46,6 +48,72 @@ PERSONA_IDN = {
     "omar": "784-1990-1111111-3",
     "layla": "784-1975-2222222-4",
 }
+
+
+# --- today-relative demo periods -------------------------------------------------------------------------------
+# Every demo seed anchors its dates on these helpers so the demo tells one story at whatever date it is shown.
+# 'open' VAT quarter = the most recent quarter that has ended (its return is the one being prepared and approved);
+# 'previous' = the quarter before it (already approved and filed outside the platform); 'current' = the quarter
+# running today. The VAT due date is period end + 28 days and the CT due date period end + 9 months (month end);
+# the legal values themselves stay in the rule register, these are demo anchors only.
+
+
+@dataclass(frozen=True)
+class DemoPeriod:
+    period_id: str
+    start: date
+    end: date
+    due: date
+
+
+@dataclass(frozen=True)
+class DemoVatQuarters:
+    today: date
+    previous: DemoPeriod
+    open: DemoPeriod
+    current: DemoPeriod
+
+
+def _default_today() -> date:
+    """Single source of 'today' for demo periods (tests monkeypatch this to freeze the demo)."""
+    return dubai_today()
+
+
+def _add_months_month_end(d: date, months: int) -> date:
+    m = d.month - 1 + months
+    y, m = d.year + m // 12, m % 12 + 1
+    return date(y, m, calendar.monthrange(y, m)[1])
+
+
+def demo_quarter(year: int, q: int) -> DemoPeriod:
+    """Calendar quarter q (1-4) of a year as a demo VAT period, due 28 days after the period end."""
+    start = date(year, 3 * (q - 1) + 1, 1)
+    end = _add_months_month_end(start, 2)
+    return DemoPeriod(period_id=f"{year}-Q{q}", start=start, end=end, due=end + timedelta(days=28))
+
+
+def _quarter_of(d: date) -> tuple[int, int]:
+    return d.year, (d.month - 1) // 3 + 1
+
+
+def _shift_quarter(year: int, q: int, n: int) -> tuple[int, int]:
+    idx = year * 4 + (q - 1) + n
+    return idx // 4, idx % 4 + 1
+
+
+def demo_vat_quarters(today: date | None = None) -> DemoVatQuarters:
+    """Demo VAT quarters relative to today: previous, open (most recent ended quarter) and current."""
+    today = today or _default_today()
+    y, q = _quarter_of(today)
+    return DemoVatQuarters(today=today, previous=demo_quarter(*_shift_quarter(y, q, -2)), open=demo_quarter(*_shift_quarter(y, q, -1)), current=demo_quarter(y, q))
+
+
+def demo_ct_year(today: date | None = None) -> DemoPeriod:
+    """Corporate-tax demo year: the most recent calendar financial year that has ended (due end + 9 months)."""
+    today = today or _default_today()
+    y = today.year - 1
+    end = date(y, 12, 31)
+    return DemoPeriod(period_id=f"FY{y}", start=date(y, 1, 1), end=end, due=_add_months_month_end(end, 9))
 
 
 def demo_seeder(fn: Callable[[Session], None]) -> Callable[[Session], None]:

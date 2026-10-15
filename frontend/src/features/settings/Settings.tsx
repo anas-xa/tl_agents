@@ -15,11 +15,14 @@ export default function Settings() {
   const { me, companyId, can } = useAuth()
   const [params, setParams] = useSearchParams()
   const extra = useSlotEntries('settings.tabs')
-  const [tab, setTab] = useState(params.get('tab') || 'team')
+  const showTeam = !!companyId && (can('delegates.manage', companyId) || can('settings.view_own', companyId))
+  const [tab, setTab] = useState(params.get('tab') || (showTeam ? 'team' : 'profile'))
   if (!me || !companyId) return null
   if (!can('settings.manage', companyId) && !can('settings.view_own', companyId)) return <Placeholder variant="C" />
   const tabs = [
-    { id: 'team', label: t('tab_team') },
+    // Team management is for the owner (delegates.manage) and a delegate's own rights view; a remote owner
+    // manages no delegates in the MVP, so the tab is not offered rather than failing.
+    ...(showTeam ? [{ id: 'team', label: t('tab_team') }] : []),
     { id: 'profile', label: t('tab_profile') },
     ...extra.map((e) => ({ id: e.id, label: t(e.labelKey.includes(':') ? e.labelKey : `settings:${e.labelKey}`) })),
   ]
@@ -55,7 +58,7 @@ export default function Settings() {
         ))}
       </div>
       <div role="tabpanel" id={`panel-${tab}`} aria-labelledby={`tab-${tab}`}>
-        {tab === 'team' && <TeamTab companyId={companyId} />}
+        {tab === 'team' && showTeam && <TeamTab companyId={companyId} />}
         {tab === 'profile' && <ProfileTab />}
         {Extra && (
           <Suspense fallback={<Skeleton rows={3} />}>

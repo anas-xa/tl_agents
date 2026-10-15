@@ -2,13 +2,14 @@
 
 from __future__ import annotations
 
+import calendar
 from datetime import date, timedelta
 
 from sqlalchemy import select
 from sqlalchemy.orm import Session
 
 from app.core.time import utcnow
-from app.demo import CO_ALNOOR, CO_BLUEDUNE, CO_GULFTECH, PERSONA_UUIDS
+from app.demo import CO_ALNOOR, CO_BLUEDUNE, CO_GULFTECH, PERSONA_UUIDS, demo_ct_year, demo_vat_quarters
 from app.modules.access.service import Principal
 from app.modules.audit.service import ensure_identity_mapping
 from app.modules.config.service import ensure_config, ensure_rule
@@ -98,33 +99,56 @@ def seed(db: Session) -> None:
     db.flush()
 
 
-ALNOOR_STATEMENT = """Date,Description,Debit,Credit,Balance,Currency,Reference
-2026-08-01,Opening balance / الرصيد الافتتاحي,,,"152,340.50",AED,OB-0801
-2026-08-02,Ejari rent Q3 - Business Bay office / إيجار إيجاري الربع الثالث,"42,000.00",,"110,340.50",AED,TRF-88102
-2026-08-03,DEWA bill July / فاتورة هيئة كهرباء ومياه دبي,"3,215.75",,"107,124.75",AED,DEWA-0703
-2026-08-04,Customer receipt INV-2026-0142 Al Fajer Trading / تحصيل فاتورة,,"18,750.00","125,874.75",AED,RCV-3341
-2026-08-05,Supplier payment Gulf Packaging LLC / دفعة للمورد,"9,870.00",,"116,004.75",AED,TRF-88130
-2026-08-06,Bank charges / رسوم مصرفية,105.00,,"115,899.75",AED,CHG-0806
-2026-08-07,Customer receipt INV-2026-0143 شركة الواحة للتجارة,,"27,300.00","143,199.75",AED,RCV-3342
-2026-08-10,Etisalat telecom August / اتصالات,842.00,,"142,357.75",AED,ETS-0810
-2026-08-12,Supplier payment Noor Logistics / نور للخدمات اللوجستية,"6,450.00",,"135,907.75",AED,TRF-88155
-2026-08-14,Customer receipt INV-2026-0144 Desert Line Co,,"12,400.00","148,307.75",AED,RCV-3343
-2026-08-15,FTA VAT payment Q2 2026 / سداد ضريبة القيمة المضافة,"21,860.00",,"126,447.75",AED,FTA-VAT-Q2
-2026-08-18,Owner drawing - Khalid / مسحوبات المالك,"15,000.00",,"111,447.75",AED,TRF-88170
-2026-08-20,Supplier payment Al Madar Stationery / القرطاسية,"1,230.50",,"110,217.25",AED,TRF-88181
-2026-08-22,Customer receipt INV-2026-0145 Blue Sky FZE,,"33,000.00","143,217.25",AED,RCV-3344
-2026-08-24,Refund to customer INV-2026-0139 / استرداد لعميل,"2,500.00",,"140,717.25",AED,TRF-88190
-2026-08-25,POS settlement - Network International / تسوية نقاط البيع,,"4,860.30","145,577.55",AED,POS-0825
-2026-08-26,Insurance premium - vehicle / قسط تأمين المركبة,"3,980.00",,"141,597.55",AED,TRF-88201
-2026-08-27,WPS salaries August / رواتب نظام حماية الأجور,"46,500.00",,"95,097.55",AED,WPS-0827
-2026-08-27,WPS salaries August / رواتب نظام حماية الأجور,"46,500.00",,"48,597.55",AED,WPS-0827
-2026-08-28,Customer receipt INV-2026-0146 ١٢٣ Trading / تحصيل,,"9,990.00","58,587.55",AED,RCV-3345
-2026-08-29,Bank charges - international transfer / رسوم تحويل دولي,75.00,,"58,512.55",AED,CHG-0829
-2026-08-30,Supplier payment Emirates Printing Press,"4,120.00",,"54,392.55",AED,TRF-88215
-2026-08-31,Interest / profit credit / أرباح الوديعة,, 312.40,"54,704.95",AED,INT-0831
-2026-08-31,Customer receipt INV-2026-0147 مؤسسة النخيل,,"16,250.00","70,954.95",AED,RCV-3346
-2026-08-31,Petty cash withdrawal / سحب نثريات,"2,000.00",,"68,954.95",AED,ATM-0831
-"""
+# Al Noor's demo bank statement covers one calendar month: the latest month that ended at least 35 days before today
+# (so the manual-data badge reads 'update due'). Placeholders are filled by alnoor_statement().
+ALNOOR_STATEMENT_TEMPLATE = [
+    (1, "Opening balance / الرصيد الافتتاحي,,,\"152,340.50\",AED,OB-{mm}01"),
+    (2, "Ejari rent Q{q} - Business Bay office / إيجار إيجاري الربع {q_ar},\"42,000.00\",,\"110,340.50\",AED,TRF-88102"),
+    (3, "DEWA bill {prev_month} / فاتورة هيئة كهرباء ومياه دبي,\"3,215.75\",,\"107,124.75\",AED,DEWA-{prev_mm}03"),
+    (4, "Customer receipt INV-{yyyy}-0142 Al Fajer Trading / تحصيل فاتورة,,\"18,750.00\",\"125,874.75\",AED,RCV-3341"),
+    (5, "Supplier payment Gulf Packaging LLC / دفعة للمورد,\"9,870.00\",,\"116,004.75\",AED,TRF-88130"),
+    (6, "Bank charges / رسوم مصرفية,105.00,,\"115,899.75\",AED,CHG-{mm}06"),
+    (7, "Customer receipt INV-{yyyy}-0143 شركة الواحة للتجارة,,\"27,300.00\",\"143,199.75\",AED,RCV-3342"),
+    (10, "Etisalat telecom {month} / اتصالات,842.00,,\"142,357.75\",AED,ETS-{mm}10"),
+    (12, "Supplier payment Noor Logistics / نور للخدمات اللوجستية,\"6,450.00\",,\"135,907.75\",AED,TRF-88155"),
+    (14, "Customer receipt INV-{yyyy}-0144 Desert Line Co,,\"12,400.00\",\"148,307.75\",AED,RCV-3343"),
+    (15, "FTA VAT payment Q{pq} {pq_yyyy} / سداد ضريبة القيمة المضافة,\"21,860.00\",,\"126,447.75\",AED,FTA-VAT-Q{pq}"),
+    (18, "Owner drawing - Khalid / مسحوبات المالك,\"15,000.00\",,\"111,447.75\",AED,TRF-88170"),
+    (20, "Supplier payment Al Madar Stationery / القرطاسية,\"1,230.50\",,\"110,217.25\",AED,TRF-88181"),
+    (22, "Customer receipt INV-{yyyy}-0145 Blue Sky FZE,,\"33,000.00\",\"143,217.25\",AED,RCV-3344"),
+    (24, "Refund to customer INV-{yyyy}-0139 / استرداد لعميل,\"2,500.00\",,\"140,717.25\",AED,TRF-88190"),
+    (25, "POS settlement - Network International / تسوية نقاط البيع,,\"4,860.30\",\"145,577.55\",AED,POS-{mm}25"),
+    (26, "Insurance premium - vehicle / قسط تأمين المركبة,\"3,980.00\",,\"141,597.55\",AED,TRF-88201"),
+    (27, "WPS salaries {month} / رواتب نظام حماية الأجور,\"46,500.00\",,\"95,097.55\",AED,WPS-{mm}27"),
+    (27, "WPS salaries {month} / رواتب نظام حماية الأجور,\"46,500.00\",,\"48,597.55\",AED,WPS-{mm}27"),
+    (28, "Customer receipt INV-{yyyy}-0146 ١٢٣ Trading / تحصيل,,\"9,990.00\",\"58,587.55\",AED,RCV-3345"),
+    (29, "Bank charges - international transfer / رسوم تحويل دولي,75.00,,\"58,512.55\",AED,CHG-{mm}29"),
+    (30, "Supplier payment Emirates Printing Press,\"4,120.00\",,\"54,392.55\",AED,TRF-88215"),
+    (31, "Interest / profit credit / أرباح الوديعة,, 312.40,\"54,704.95\",AED,INT-{mm}31"),
+    (31, "Customer receipt INV-{yyyy}-0147 مؤسسة النخيل,,\"16,250.00\",\"70,954.95\",AED,RCV-3346"),
+    (31, "Petty cash withdrawal / سحب نثريات,\"2,000.00\",,\"68,954.95\",AED,ATM-{mm}31"),
+]
+QUARTER_AR = {1: "الأول", 2: "الثاني", 3: "الثالث", 4: "الرابع"}
+
+
+def statement_month(today: date | None = None) -> tuple[date, date]:
+    """First and last day of the latest calendar month that ended at least 35 days before today."""
+    anchor = (today or demo_vat_quarters().today) - timedelta(days=35)
+    end = anchor if (anchor + timedelta(days=1)).day == 1 else anchor.replace(day=1) - timedelta(days=1)
+    return end.replace(day=1), end
+
+
+def alnoor_statement(today: date | None = None) -> str:
+    start, end = statement_month(today)
+    prev = start - timedelta(days=1)
+    q = (start.month - 1) // 3 + 1
+    pq, pq_year = (4, start.year - 1) if q == 1 else (q - 1, start.year)
+    values = {"mm": f"{start.month:02d}", "prev_mm": f"{prev.month:02d}", "month": calendar.month_name[start.month], "prev_month": calendar.month_name[prev.month], "yyyy": start.year, "q": q, "q_ar": QUARTER_AR[q], "pq": pq, "pq_yyyy": pq_year}
+    lines = ["Date,Description,Debit,Credit,Balance,Currency,Reference"]
+    for day, text in ALNOOR_STATEMENT_TEMPLATE:
+        lines.append(f"{start.replace(day=min(day, end.day)).isoformat()},{text.format(**values)}")
+    return "\n".join(lines) + "\n"
+
 
 ALNOOR_TRIAL_BALANCE = """Account code,Account name,اسم الحساب,Debit,Credit
 1000,Cash at bank,النقد في البنك,"68,954.95",
@@ -150,17 +174,22 @@ def seed_demo(db: Session) -> None:
     khalid = _principal(db, "khalid", "Khalid Al Mansoori")
     # Al Noor: completed manual statement upload (~25 mixed Arabic/English lines) under its own declaration record
     if db.scalar(select(StatementUpload).where(StatementUpload.company_id == CO_ALNOOR, StatementUpload.is_demo.is_(True))) is None:
-        up = svc.create_upload(db, khalid, CO_ALNOOR, file_name="alnoor-demo-bank-statement-aug-2026.csv", data=ALNOOR_STATEMENT.encode("utf-8"), kind="bank_statement", bank_id="demo_bank", bank_name="Demo Bank (fixture)", account_ref="AE07DEMO0000000001234", purpose="bookkeeping_classification", notice_acknowledged=True)
+        m_start, m_end = statement_month()
+        tag = f"{calendar.month_abbr[m_start.month].lower()}-{m_start.year}"
+        up = svc.create_upload(db, khalid, CO_ALNOOR, file_name=f"alnoor-demo-bank-statement-{tag}.csv", data=alnoor_statement().encode("utf-8"), kind="bank_statement", bank_id="demo_bank", bank_name="Demo Bank (fixture)", account_ref="AE07DEMO0000000001234", purpose="bookkeeping_classification", notice_acknowledged=True)
         up.is_demo = True
         up.uploaded_at = now - timedelta(days=12)
-        tb = svc.create_upload(db, khalid, CO_ALNOOR, file_name="alnoor-demo-trial-balance-aug-2026.csv", data=ALNOOR_TRIAL_BALANCE.encode("utf-8"), kind="erp_export", export_type="trial_balance", purpose="bookkeeping_classification", notice_acknowledged=True, period_start=date(2026, 8, 1), period_end=date(2026, 8, 31))
+        tb = svc.create_upload(db, khalid, CO_ALNOOR, file_name=f"alnoor-demo-trial-balance-{tag}.csv", data=ALNOOR_TRIAL_BALANCE.encode("utf-8"), kind="erp_export", export_type="trial_balance", purpose="bookkeeping_classification", notice_acknowledged=True, period_start=m_start, period_end=m_end)
         tb.is_demo = True
         tb.uploaded_at = now - timedelta(days=11)
-    # Al Noor: tax profile company_provided (VAT quarterly, TRN 100xxxxxxxxxxxx, CT registered, SBR unknown)
+    # Al Noor: tax profile company_provided (VAT quarterly, entered period = the open demo quarter, TRN 100xxxxxxxxxxxx;
+    # CT registered for the financial year running after the demo CT year, SBR unknown)
     if db.scalar(select(TaxProfile).where(TaxProfile.company_id == CO_ALNOOR)) is None:
-        vat = svc.set_tax_profile(db, khalid, CO_ALNOOR, {"tax_type": "vat", "trn": "100234567890003", "registration_status": "registered", "filing_status": "last return submitted (as provided by the company)", "tax_period_start": "2026-07-01", "tax_period_end": "2026-09-30", "filing_frequency": "quarterly", "source": "company_provided"})
+        open_q = demo_vat_quarters().open
+        ct_year = demo_ct_year().end.year + 1
+        vat = svc.set_tax_profile(db, khalid, CO_ALNOOR, {"tax_type": "vat", "trn": "100234567890003", "registration_status": "registered", "filing_status": "last return submitted (as provided by the company)", "tax_period_start": open_q.start.isoformat(), "tax_period_end": open_q.end.isoformat(), "filing_frequency": "quarterly", "source": "company_provided"})
         vat.is_demo = True
-        ct = svc.set_tax_profile(db, khalid, CO_ALNOOR, {"tax_type": "corporate_tax", "trn": "100234567890004", "registration_status": "registered", "filing_status": "first period not yet due (as provided by the company)", "tax_period_start": "2026-01-01", "tax_period_end": "2026-12-31", "filing_frequency": "annual", "source": "company_provided", "small_business_relief": [{"period_end": "2026-12-31", "indicator": "unknown", "source": "unknown"}]})
+        ct = svc.set_tax_profile(db, khalid, CO_ALNOOR, {"tax_type": "corporate_tax", "trn": "100234567890004", "registration_status": "registered", "filing_status": "first period not yet due (as provided by the company)", "tax_period_start": f"{ct_year}-01-01", "tax_period_end": f"{ct_year}-12-31", "filing_frequency": "annual", "source": "company_provided", "small_business_relief": [{"period_end": f"{ct_year}-12-31", "indicator": "unknown", "source": "unknown"}]})
         ct.is_demo = True
     # tax links: Al Noor manual/unverified (adapter off), Gulf Tech fixture 'error' state labelled Demo data
     svc.tax_link(db, CO_ALNOOR)

@@ -212,7 +212,15 @@ def seed_demo(db: Session) -> None:
 
     if not get_config(db, "escalation.tax_specialist_path.enabled", False):
         set_config(db, "escalation.tax_specialist_path.enabled", True, changed_by="demo-seed", change_reason="demo environment: tax-specialist path shown with fixture data", label="demo environment only; OFF by default until the FTA position is recorded")
-    from app.demo import CO_ALNOOR, CO_BLUEDUNE, CO_GULFTECH, CO_SAFWA, PERSONA_UUIDS
+    from app.demo import (
+        CO_ALNOOR,
+        CO_BLUEDUNE,
+        CO_GULFTECH,
+        CO_SAFWA,
+        PERSONA_UUIDS,
+        demo_ct_year,
+        demo_vat_quarters,
+    )
     from app.modules.escalation.calendar import calendar_version_label
 
     today = date.today()
@@ -229,6 +237,10 @@ def seed_demo(db: Session) -> None:
         return
     cal = calendar_version_label(db)
     now = utcnow()
+    quarters, ct = demo_vat_quarters(), demo_ct_year()
+    prev_ref = quarters.previous.period_id.replace("-", "")  # e.g. 2026Q2
+    open_ref = quarters.open.period_id.replace("-", "")
+    ct_scope = {"period_from": ct.start.isoformat(), "period_to": ct.end.isoformat()}
     hassan, layla, khalid_key, priya_key = PERSONA_UUIDS["hassan"], PERSONA_UUIDS["layla"], "demo-owner-khalid", "demo-owner-priya"
 
     def ev(case: EscalationCase, et: str, at, **kw) -> None:
@@ -249,10 +261,11 @@ def seed_demo(db: Session) -> None:
         ev(c, "escalated", opened_at, reason_code=reason)
         return c
 
-    # 1. Al Noor: resolved tax case with two pauses (consent wait 2 days, information wait 2 days).
+    # 1. Al Noor: resolved tax case with two pauses (consent wait 2 days, information wait 2 days), on the previous
+    #    demo quarter's VAT return.
     t0 = now - timedelta(days=20)
-    c1 = case(CO_ALNOOR, "tax", "user_requested", "item:vat_return_2026Q2", t0, title="VAT return draft - question on reverse charge entry", linked_item_id="vat_return_2026Q2", opened_by_key=khalid_key, status="resolved", assigned_to=hassan, assigned_role_label="Tax specialist lead", accepted_at=t0 + timedelta(days=1), first_response_at=t0 + timedelta(days=3, hours=12), resolved_at=t0 + timedelta(days=8), consent_requested_at=t0 + timedelta(days=1), consent_decision="granted", resolution_outcome="a")
-    c1.details = {**c1.details, "requested_scope": [{"module": "tax", "data_class": "return", "period_from": "2026-04-01", "period_to": "2026-06-30"}], "purpose": "review of the VAT return draft"}
+    c1 = case(CO_ALNOOR, "tax", "user_requested", f"item:vat_return_{prev_ref}", t0, title="VAT return draft - question on reverse charge entry", linked_item_id=f"vat_return_{prev_ref}", opened_by_key=khalid_key, status="resolved", assigned_to=hassan, assigned_role_label="Tax specialist lead", accepted_at=t0 + timedelta(days=1), first_response_at=t0 + timedelta(days=3, hours=12), resolved_at=t0 + timedelta(days=8), consent_requested_at=t0 + timedelta(days=1), consent_decision="granted", resolution_outcome="a")
+    c1.details = {**c1.details, "requested_scope": [{"module": "tax", "data_class": "return", "period_from": quarters.previous.start.isoformat(), "period_to": quarters.previous.end.isoformat()}], "purpose": "review of the VAT return draft"}
     ev(c1, "assigned", t0 + timedelta(hours=4), actor_role="escalation_ops")
     ev(c1, "accepted", t0 + timedelta(days=1), actor_role="tax_specialist")
     ev(c1, "consent_requested", t0 + timedelta(days=1), actor_role="tax_specialist")
@@ -260,7 +273,7 @@ def seed_demo(db: Session) -> None:
     db.add(CasePause(case_id=c1.case_id, reason_code="awaiting_owner_consent", started_at=t0 + timedelta(days=1), ended_at=t0 + timedelta(days=3)))
     ev(c1, "consent_granted", t0 + timedelta(days=3), actor_role="owner")
     ev(c1, "resume", t0 + timedelta(days=3), reason_code="awaiting_owner_consent")
-    db.add(CaseAccessGrant(case_id=c1.case_id, company_id=CO_ALNOOR, recipient_uuid=hassan, purpose="review of the VAT return draft", scope=[{"module": "tax", "data_class": "return", "period_from": "2026-04-01", "period_to": "2026-06-30"}], granted_by_key=khalid_key, granted_by_role="owner", granted_at=t0 + timedelta(days=3), expires_at=t0 + timedelta(days=93)))
+    db.add(CaseAccessGrant(case_id=c1.case_id, company_id=CO_ALNOOR, recipient_uuid=hassan, purpose="review of the VAT return draft", scope=[{"module": "tax", "data_class": "return", "period_from": quarters.previous.start.isoformat(), "period_to": quarters.previous.end.isoformat()}], granted_by_key=khalid_key, granted_by_role="owner", granted_at=t0 + timedelta(days=3), expires_at=t0 + timedelta(days=93)))
     ev(c1, "first_response", t0 + timedelta(days=3, hours=12), actor_role="tax_specialist")
     ev(c1, "information_requested", t0 + timedelta(days=4), actor_role="tax_specialist", reason_code="supplier_invoice_copy")
     ev(c1, "pause", t0 + timedelta(days=4), reason_code="awaiting_owner_information")
@@ -270,21 +283,23 @@ def seed_demo(db: Session) -> None:
     ev(c1, "resolved", t0 + timedelta(days=8), actor_role="tax_specialist", reason_code="outcome_a")
     # 2. Al Noor: audit case awaiting consent, day 5 (reminder day 3 sent).
     t1 = now - timedelta(days=5)
-    c2 = case(CO_ALNOOR, "audit", "audit_signoff_required", "audit_file_2025|audit_required|FY2025", t1, rule="audit_required", source="audit_exception", opened_by="agent", status="awaiting_consent", assigned_to=layla, assigned_role_label="Licensed auditor firm", accepted_at=t1 + timedelta(hours=6), consent_requested_at=t1, title=None, period="FY2025")
-    c2.details = {**c2.details, "requested_scope": [{"module": "audit", "data_class": "audit file", "period_from": "2025-01-01", "period_to": "2025-12-31"}, {"module": "audit", "data_class": "bank statement", "period_from": "2025-01-01", "period_to": "2025-12-31"}], "purpose": "audit-required check (owner-confirmed flag inputs)"}
+    c2 = case(CO_ALNOOR, "audit", "audit_signoff_required", f"audit_file_{ct.end.year}|audit_required|{ct.period_id}", t1, rule="audit_required", source="audit_exception", opened_by="agent", status="awaiting_consent", assigned_to=layla, assigned_role_label="Licensed auditor firm", accepted_at=t1 + timedelta(hours=6), consent_requested_at=t1, title=None, period=ct.period_id)
+    c2.details = {**c2.details, "requested_scope": [{"module": "audit", "data_class": "audit file", **ct_scope}, {"module": "audit", "data_class": "bank statement", **ct_scope}], "purpose": "audit-required check (owner-confirmed flag inputs)"}
     ev(c2, "assigned", t1 + timedelta(hours=2), actor_role="escalation_ops")
     ev(c2, "accepted", t1 + timedelta(hours=6), actor_role="licensed_auditor")
     ev(c2, "consent_requested", t1, actor_role="licensed_auditor")
     ev(c2, "pause", t1, reason_code="awaiting_owner_consent")
     db.add(CasePause(case_id=c2.case_id, reason_code="awaiting_owner_consent", started_at=t1, ended_at=None))
     ev(c2, "reminder_sent", t1 + timedelta(days=3), day=3, to="owner_and_signatories", text_key="consent_wait.reminder")
-    # 3. Al Noor: deadline-near compliance case, open, unassigned (VAT return due in 10 days).
+    # 3. Al Noor: deadline-near compliance case, open, unassigned, on the open demo quarter's VAT return (due date
+    #    from the demo quarter when it is still ahead, otherwise 10 days out).
     t2 = now - timedelta(days=2)
-    case(CO_ALNOOR, "compliance", "deadline_risk", "DET-1023456|VAT_RETURN|2026Q3", t2, rule="deadline_risk", source="compliance_item", opened_by="agent", priority="deadline_near", due_date=today + timedelta(days=10), title=None, period="2026Q3")
+    near_due = quarters.open.due if quarters.open.due >= quarters.today else quarters.today + timedelta(days=10)
+    case(CO_ALNOOR, "compliance", "deadline_risk", f"DET-1023456|VAT_RETURN|{open_ref}", t2, rule="deadline_risk", source="compliance_item", opened_by="agent", priority="deadline_near", due_date=near_due, title=None, period=open_ref)
     # 4. Blue Dune: closed - no consent (requested 20 days ago, closed day 14, reopen within 30 days).
     t3 = now - timedelta(days=20)
     c4 = case(CO_BLUEDUNE, "tax", "user_requested", "topic:corporate_tax_registration", t3, title="Corporate tax registration timing", topic_code="corporate_tax_registration", opened_by_key=priya_key, status="closed_no_consent", assigned_to=hassan, assigned_role_label="Tax specialist lead", accepted_at=t3 + timedelta(hours=5), consent_requested_at=t3, closed_at=t3 + timedelta(days=14), resolution_outcome="d", reopen_until=(t3 + timedelta(days=44)).date())
-    c4.details = {**c4.details, "requested_scope": [{"module": "tax", "data_class": "tax profile", "period_from": "2025-01-01", "period_to": "2025-12-31"}], "purpose": "registration timing review"}
+    c4.details = {**c4.details, "requested_scope": [{"module": "tax", "data_class": "tax profile", **ct_scope}], "purpose": "registration timing review"}
     ev(c4, "consent_requested", t3, actor_role="tax_specialist")
     ev(c4, "pause", t3, reason_code="awaiting_owner_consent")
     db.add(CasePause(case_id=c4.case_id, reason_code="awaiting_owner_consent", started_at=t3, ended_at=t3 + timedelta(days=14)))

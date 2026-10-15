@@ -1,8 +1,8 @@
 """Approval seeds (ORDER 60): configuration keys and rule-register entries; demo approval states.
 
 Demo (all tagged is_demo, tolerant of missing upstream demo data):
-- Al Noor: the ready VAT pack has an open approval request; an earlier quarter carries a historic approval and a
-  'Filed outside platform (self-declared)' record.
+- Al Noor: the open quarter's VAT pack (ready for owner review) has an open approval request sent by the delegate;
+  the previous quarter's pack carries a historic approval and a 'Filed outside platform (self-declared)' record.
 - Blue Dune: an approval request whose link expired.
 - Safwa: authority 'unclear' (DET record says any one partner, MOA signing clause says two together) blocks
   approval.
@@ -17,7 +17,7 @@ from sqlalchemy import select
 from sqlalchemy.orm import Session
 
 from app.core.time import utcnow
-from app.demo import CO_ALNOOR, CO_BLUEDUNE, CO_SAFWA, PERSONA_UUIDS
+from app.demo import CO_ALNOOR, CO_BLUEDUNE, CO_SAFWA, PERSONA_UUIDS, demo_ct_year, demo_vat_quarters
 from app.modules.approvals import service as svc
 from app.modules.approvals.models import (
     Approval,
@@ -116,41 +116,29 @@ def seed_demo(db: Session) -> None:
     except ImportError:  # pragma: no cover
         return
     now = utcnow()
+    quarters, ct = demo_vat_quarters(), demo_ct_year()
     omar = _Actor(PERSONA_UUIDS["omar"], "Omar Haddad")
-    # Al Noor: open approval request on the ready VAT pack (sent by the delegate).
-    q2 = drafts.latest_pack(db, CO_ALNOOR, "vat", "2026-Q2")
-    if q2 is None:
+    # Al Noor: open approval request on the open quarter's VAT pack, ready for owner review (sent by the delegate).
+    q_open = drafts.latest_pack(db, CO_ALNOOR, "vat", quarters.open.period_id)
+    if q_open is None:
         try:
-            q2 = drafts.create_pack(db, CO_ALNOOR, "vat", "2026-Q2", actor=omar, run_calculation=False, is_demo=True)
+            q_open = drafts.create_pack(db, CO_ALNOOR, "vat", quarters.open.period_id, actor=omar, run_calculation=False, is_demo=True)
         except Exception:
-            q2 = None
-    if q2 is not None and not q2.superseded and not q2.locked:
-        svc._new_request(db, q2, requested_by=omar, role="delegate", is_demo=True)
-    # Al Noor: historic approval + 'Filed outside platform (self-declared)' for the earlier quarter.
-    # The earlier quarter's pack is an archived snapshot (no live draft row), so the drafts lists are unchanged.
-    q1_lines = copy.deepcopy(q2.lines) if q2 is not None else []
-    q1_snapshot = {"id": "pack_demo_alnoor_2026q1", "company_id": CO_ALNOOR, "tax_type": "vat", "period_id": "2026-Q1", "version": 1, "data_version": "demo-alnoor-2026q1", "rule_version": q2.rule_version if q2 is not None else None, "lines": q1_lines, "assumptions": None}
+            q_open = None
+    if q_open is not None and not q_open.superseded and not q_open.locked:
+        svc._new_request(db, q_open, requested_by=omar, role="delegate", is_demo=True)
+    # Al Noor: the previous quarter's real pack carries a historic approval and a 'Filed outside platform
+    # (self-declared)' record (approved and filed before its due date).
     holders = [h for h in svc.ensure_authority(db, CO_ALNOOR) if h.display_name == "Khalid Al Mansoori"]
     holder = holders[0] if holders else None
     if holder is not None and holder.identity_uuid is None:
         holder.identity_uuid = PERSONA_UUIDS["khalid"]
-    created = now - timedelta(days=176)
-    decided = created + timedelta(hours=30)
-    from app.modules.drafts.service import pack_hash
-
-    h1 = pack_hash(q1_snapshot)
-    q1_id = q1_snapshot["id"]
-    req1 = ApprovalRequest(company_id=CO_ALNOOR, pack_id=q1_id, return_type="vat", period_id="2026-Q1", period_start=date(2026, 1, 1), period_end=date(2026, 3, 31), due_date=date(2026, 4, 28), due_date_source="computed", amounts=[{"key": ln["key"], "term": ln.get("term"), "value_fils": ln.get("value_fils")} for ln in q1_lines if ln.get("value_fils") is not None], rule_version=q1_snapshot["rule_version"], human_review_status="under_review", draft_content_hash=h1, pack_version=1, authority_rule_type="any_one", quorum_n=1, entitled_approvers=[{"name": "Khalid Al Mansoori", "capacity": "owner", "kind": "authority_holder"}], status="decided", status_reason="APPROVED", requested_by_name="Omar Haddad", requested_by_role="delegate", created_at=created, link_expires_at=created + timedelta(days=3), decided_at=decided, is_demo=True)
-    db.add(req1)
-    db.flush()
-    a1 = Approval(id="APV-DEMO-ALNOOR-Q1", request_id=req1.id, company_id=CO_ALNOOR, pack_id=q1_id, decision="approve", approver_uuid=PERSONA_UUIDS["khalid"], approver_name="Khalid Al Mansoori", assurance_level="SOP3", capacity="owner", display_role="Owner", authority_evidence_ref=holder.id if holder else None, action_approved="release_for_manual_filing", data_version_hash=h1, pack_version=1, rule_version_ids=svc.rule_version_ids(q2) if q2 is not None else None, ai_generated_label="AI-generated draft: not a filed return", human_review_status="under_review", declaration_wording_version_id=DECLARATION_WORDING_VERSION, declaration_wording=DECLARATION_WORDING, channel="web/UAE PASS click-to-approve", device_family="desktop", decided_at=decided, valid_until=decided + timedelta(days=7), validity_days=7, status="active", is_demo=True)
-    db.add(a1)
-    for path, at in (("manual_release", decided + timedelta(days=1)), ("manual_filing_record", decided + timedelta(days=3))):
-        db.add(GateDecision(company_id=CO_ALNOOR, pack_id=q1_id, data_version_hash=h1, approval_id=a1.id, path=path, caller_type="user", outcome="pass", tax_type="vat", at=at))
-    db.add(ManualFilingRecord(id="MFR-DEMO-ALNOOR-Q1", company_id=CO_ALNOOR, pack_id=q1_id, request_id=req1.id, approval_id=a1.id, data_version_hash=h1, tax_type="vat", state="filed_outside_self_declared", filed_date=(decided + timedelta(days=3)).date(), authority_reference="FTA2026Q1A7731", self_filed_confirmed=True, recorded_by_uuid=PERSONA_UUIDS["khalid"], recorded_by_name="Khalid Al Mansoori", recorded_by_role="owner", recorded_at=decided + timedelta(days=3, hours=2), is_demo=True))
+    q_prev = drafts.latest_pack(db, CO_ALNOOR, "vat", quarters.previous.period_id)
+    if q_prev is not None and not q_prev.superseded and not q_prev.locked:
+        _historic_approval(db, q_prev, quarters.previous, holder)
     # Blue Dune: request link expired.
-    ct_template = drafts.latest_pack(db, CO_ALNOOR, "ct", "FY2025")
-    bd = _demo_pack(db, CO_BLUEDUNE, "ct", "FY2025", ct_template, created_days_ago=6)
+    ct_template = drafts.latest_pack(db, CO_ALNOOR, "ct", ct.period_id)
+    bd = _demo_pack(db, CO_BLUEDUNE, "ct", ct.period_id, ct_template, created_days_ago=6)
     req_bd = svc._new_request(db, bd, requested_by=omar, role="delegate", is_demo=True)
     req_bd.created_at, req_bd.link_expires_at = now - timedelta(days=5), now - timedelta(days=2)
     db.add(ApprovalStatusEvent(request_id=req_bd.id, from_status=req_bd.status, to_status="expired", reason_code="LINK_EXPIRED", at=req_bd.link_expires_at))
@@ -160,6 +148,52 @@ def seed_demo(db: Session) -> None:
     if db.scalar(select(AuthorityHolder).where(AuthorityHolder.company_id == CO_SAFWA, AuthorityHolder.is_demo.is_(True)).limit(1)) is None:
         db.add(AuthorityHolder(company_id=CO_SAFWA, display_name="Khalid Al Mansoori", capacity="partner", source_document="MOA signing clause (uploaded, human-reviewed) (Demo data)", rule_type="two_together", quorum_n=2, determination_note="conflicts with the DET licence record (any one partner): unclear", is_demo=True))
         db.flush()
-    sf = _demo_pack(db, CO_SAFWA, "vat", "2026-Q2", q2, created_days_ago=2)
+    sf = _demo_pack(db, CO_SAFWA, "vat", quarters.open.period_id, q_open, created_days_ago=2)
     svc._new_request(db, sf, requested_by=None, role="system", is_demo=True, route=False)
     db.flush()
+
+
+def _historic_approval(db: Session, pack, period, holder: AuthorityHolder | None) -> None:
+    """Request (sent by the delegate), owner approval, release and manual filing record on a real pack, dated
+    along the quarter's own timeline; the pack ends 'Filed (user-confirmed)' and locked, like the live flow."""
+    from app.modules.drafts import service as drafts
+
+    khalid = _Owner(PERSONA_UUIDS["khalid"], "Khalid Al Mansoori")
+    created = pack.created_at + timedelta(days=1)
+    decided = created + timedelta(hours=30)
+    filed_at = decided + timedelta(days=3)
+    h = drafts.pack_hash(pack)
+    req = ApprovalRequest(company_id=CO_ALNOOR, pack_id=pack.id, return_type="vat", period_id=period.period_id, period_start=period.start, period_end=period.end, due_date=period.due, due_date_source="computed", amounts=svc.pack_amounts(pack), rule_version=pack.rule_version, human_review_status=pack.review_status, draft_content_hash=h, pack_version=pack.version, authority_rule_type="any_one", quorum_n=1, entitled_approvers=[{"name": "Khalid Al Mansoori", "capacity": "owner", "kind": "authority_holder"}], status="decided", status_reason="APPROVED", requested_by_name="Omar Haddad", requested_by_role="delegate", created_at=created, link_expires_at=created + timedelta(days=3), decided_at=decided, is_demo=True)
+    db.add(req)
+    db.flush()
+    a = Approval(id="APV-DEMO-ALNOOR-PREV", request_id=req.id, company_id=CO_ALNOOR, pack_id=pack.id, decision="approve", approver_uuid=PERSONA_UUIDS["khalid"], approver_name="Khalid Al Mansoori", assurance_level="SOP3", capacity="owner", display_role="Owner", authority_evidence_ref=holder.id if holder else None, action_approved="release_for_manual_filing", data_version_hash=h, pack_version=pack.version, rule_version_ids=svc.rule_version_ids(pack), ai_generated_label="AI-generated draft: not a filed return", human_review_status=pack.review_status, declaration_wording_version_id=DECLARATION_WORDING_VERSION, declaration_wording=DECLARATION_WORDING, channel="web/UAE PASS click-to-approve", device_family="desktop", decided_at=decided, valid_until=decided + timedelta(days=7), validity_days=7, status="active", is_demo=True)
+    db.add(a)
+    for path, at in (("manual_release", decided + timedelta(days=1)), ("manual_filing_record", filed_at)):
+        db.add(GateDecision(company_id=CO_ALNOOR, pack_id=pack.id, data_version_hash=h, approval_id=a.id, path=path, caller_type="user", outcome="pass", tax_type="vat", at=at))
+    reference = "FTA" + period.period_id.replace("-", "") + "A7731"
+    db.add(ManualFilingRecord(id="MFR-DEMO-ALNOOR-PREV", company_id=CO_ALNOOR, pack_id=pack.id, request_id=req.id, approval_id=a.id, data_version_hash=h, tax_type="vat", state="filed_outside_self_declared", filed_date=filed_at.date(), authority_reference=reference, self_filed_confirmed=True, recorded_by_uuid=PERSONA_UUIDS["khalid"], recorded_by_name="Khalid Al Mansoori", recorded_by_role="owner", recorded_at=filed_at + timedelta(hours=2), is_demo=True))
+    db.flush()
+    drafts.set_approval_status(db, pack.id, "approved_for_submission", actor=khalid, expected_hash=h)
+    drafts.set_approval_status(db, pack.id, "filed_user_confirmed", actor=khalid, expected_hash=h, filing_reference=reference)
+    from app.modules.drafts.models import DraftStatusHistory
+
+    for row in db.scalars(select(DraftStatusHistory).where(DraftStatusHistory.pack_id == pack.id, DraftStatusHistory.to_status.in_(("approved_for_submission", "filed_user_confirmed")))):
+        row.at = decided if row.to_status == "approved_for_submission" else filed_at + timedelta(hours=2)
+    db.flush()
+
+
+class _Owner(_Actor):
+    """Owner actor for the drafts status hook (it reads the company role)."""
+
+    def __init__(self, uuid: str, name: str) -> None:
+        from app.modules.companies.models import CompanyRole
+
+        super().__init__(uuid, name)
+        self.session_id, self.staff_roles = "demo-seed-session", []
+        self._roles = [CompanyRole(identity_uuid=uuid, company_id=CO_ALNOOR, role="owner", functions=["all"])]
+
+    def roles_for(self, company_id: str):
+        return self._roles
+
+    def primary_role(self):
+        return self._roles[0].role

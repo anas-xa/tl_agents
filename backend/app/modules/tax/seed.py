@@ -8,7 +8,7 @@ from sqlalchemy import select
 from sqlalchemy.orm import Session
 
 from app.core.time import utcnow
-from app.demo import CO_ALNOOR, CO_BLUEDUNE, CO_GULFTECH, CO_SAFWA
+from app.demo import CO_ALNOOR, CO_BLUEDUNE, CO_GULFTECH, CO_SAFWA, demo_ct_year, demo_vat_quarters
 from app.modules.config.models import RuleRegisterEntry
 from app.modules.config.service import ensure_config, ensure_rule
 from app.modules.tax import service as svc
@@ -53,17 +53,20 @@ def seed(db: Session) -> None:
 def seed_demo(db: Session) -> None:
     if db.get(TaxEntityProfile, CO_ALNOOR) is not None:
         return
+    quarters, ct = demo_vat_quarters(), demo_ct_year()
+    earlier_fy = date(ct.start.year - 1, 1, 1)  # first CT period: the financial year before the demo CT year
     db.add_all([
-        TaxEntityProfile(company_id=CO_ALNOOR, trn="100123456700003", vat_registered=True, vat_period_type="quarterly", ct_status="standalone_mainland", ct_status_source="self-declared, unverified (Demo data)", first_ct_period_start=date(2024, 1, 1), sbr_election="undecided", revenue_fils=2_800_000 * AED, revenue_source="books (IFRS for SMEs), owner to confirm (Demo data)", revenue_confirmed_by="Khalid Al Mansoori", revenue_confirmed_at=utcnow() - timedelta(days=3)),
-        TaxEntityProfile(company_id=CO_BLUEDUNE, trn=None, vat_registered=False, vat_period_type="quarterly", ct_status="standalone_mainland", ct_status_source="self-declared, unverified (Demo data)", first_ct_period_start=date(2025, 1, 1), sbr_election="undecided"),
-        TaxEntityProfile(company_id=CO_SAFWA, trn="100987654300003", vat_registered=True, vat_period_type="quarterly", ct_status="tax_group", ct_status_source="self-declared: member of a tax group (Demo data)", first_ct_period_start=date(2024, 1, 1)),
+        TaxEntityProfile(company_id=CO_ALNOOR, trn="100123456700003", vat_registered=True, vat_period_type="quarterly", ct_status="standalone_mainland", ct_status_source="self-declared, unverified (Demo data)", first_ct_period_start=earlier_fy, sbr_election="undecided", revenue_fils=2_800_000 * AED, revenue_source="books (IFRS for SMEs), owner to confirm (Demo data)", revenue_confirmed_by="Khalid Al Mansoori", revenue_confirmed_at=utcnow() - timedelta(days=3)),
+        TaxEntityProfile(company_id=CO_BLUEDUNE, trn=None, vat_registered=False, vat_period_type="quarterly", ct_status="standalone_mainland", ct_status_source="self-declared, unverified (Demo data)", first_ct_period_start=ct.start, sbr_election="undecided"),
+        TaxEntityProfile(company_id=CO_SAFWA, trn="100987654300003", vat_registered=True, vat_period_type="quarterly", ct_status="tax_group", ct_status_source="self-declared: member of a tax group (Demo data)", first_ct_period_start=earlier_fy),
         TaxEntityProfile(company_id=CO_GULFTECH, trn="100555555500003", vat_registered=True, vat_period_type="monthly", ct_status="unclear", ct_status_source="self-declared, unverified (Demo data)"),
-        TaxPeriodRevenue(company_id=CO_ALNOOR, period_start=date(2024, 1, 1), period_end=date(2024, 12, 31), revenue_fils=2_450_000 * AED, source="books, owner confirmed (Demo data)", confirmed_by="Khalid Al Mansoori"),
+        TaxPeriodRevenue(company_id=CO_ALNOOR, period_start=earlier_fy, period_end=date(earlier_fy.year, 12, 31), revenue_fils=2_450_000 * AED, source="books, owner confirmed (Demo data)", confirmed_by="Khalid Al Mansoori"),
     ])
     db.flush()
-    # Demo calculations: Al Noor VAT for two quarters and CT FY2025 (SBR 'may be eligible'); Safwa blocked CT.
-    svc.calculate_vat(db, CO_ALNOOR, "2026-Q2")
-    svc.calculate_vat(db, CO_ALNOOR, "2026-Q3")
-    svc.calculate_ct(db, CO_ALNOOR, "FY2025", accounting_profit_fils=500_000 * AED, revenue_fils=2_800_000 * AED, revenue_source="books (IFRS for SMEs), owner to confirm (Demo data)")
-    svc.calculate_ct(db, CO_SAFWA, "FY2025")
+    # Demo calculations: Al Noor VAT for the previous and open quarters and CT for the demo year (SBR 'may be
+    # eligible'); Safwa blocked CT.
+    svc.calculate_vat(db, CO_ALNOOR, quarters.previous.period_id)
+    svc.calculate_vat(db, CO_ALNOOR, quarters.open.period_id)
+    svc.calculate_ct(db, CO_ALNOOR, ct.period_id, accounting_profit_fils=500_000 * AED, revenue_fils=2_800_000 * AED, revenue_source="books (IFRS for SMEs), owner to confirm (Demo data)")
+    svc.calculate_ct(db, CO_SAFWA, ct.period_id)
     db.flush()

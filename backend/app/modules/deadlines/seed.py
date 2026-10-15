@@ -9,7 +9,7 @@ from sqlalchemy import select
 from sqlalchemy.orm import Session
 
 from app.core.time import dubai_today
-from app.demo import CO_ALNOOR, CO_GULFTECH, CO_SAFWA
+from app.demo import CO_GULFTECH, CO_SAFWA, demo_ct_year
 from app.modules.config.service import ensure_config, ensure_rule
 from app.modules.deadlines.models import (
     AuthorityDate,
@@ -17,7 +17,6 @@ from app.modules.deadlines.models import (
     CalendarVersion,
     DeadlineRule,
     FiledEvidence,
-    Obligation,
     RuleChange,
 )
 from app.modules.deadlines.service import DEFAULT_AUTHORITY_CALENDAR, DEFAULT_FUNCTION_MAP
@@ -141,12 +140,14 @@ def _seed_config(db: Session) -> None:
 
 def seed_demo(db: Session) -> None:
     today = dubai_today()
-    if db.scalar(select(Obligation).where(Obligation.is_demo.is_(True)).limit(1)) is not None:
+    if db.scalar(select(FiledEvidence).where(FiledEvidence.is_demo.is_(True)).limit(1)) is not None:
         return
-    # Al Noor VAT Q3 2026 (owner-entered period in the datalinks profile): a draft is ready for owner review (Demo data).
-    db.add(Obligation(company_id=CO_ALNOOR, obligation_key="vat_return:2026-07-01_2026-09-30", obligation_type="vat_return", authority="FTA", readiness_fixture="draft_ready", is_demo=True, history=[]))
-    # Safwa CT FY2025: owner declared it filed without a receipt (owner-declared, unverified; reminders stop; not in K7/K8).
-    db.add(FiledEvidence(company_id=CO_SAFWA, obligation_key="ct_return:2025-01-01_2025-12-31", source="owner_declaration", recorded_by_role="owner", is_demo=True))
+    # Al Noor VAT (open demo quarter, owner-entered period in the datalinks profile): readiness comes from the real
+    # draft pack (ready for owner review), so no fixture is stored here.
+    # Safwa CT for the demo year: owner declared it filed without a receipt (owner-declared, unverified; reminders
+    # stop; not in K7/K8).
+    ct = demo_ct_year()
+    db.add(FiledEvidence(company_id=CO_SAFWA, obligation_key=f"ct_return:{ct.start.isoformat()}_{ct.end.isoformat()}", source="owner_declaration", recorded_by_role="owner", is_demo=True))
     # Gulf Tech: labelled placeholder FTA-extension case (Q318 demo fixture) on the previous monthly VAT period.
     first = today.replace(day=1)
     prev_end = first - timedelta(days=1)
