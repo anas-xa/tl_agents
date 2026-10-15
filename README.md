@@ -50,37 +50,30 @@ default is off until the FTA position is recorded.
 
 ## Run it
 
-```bash
-# backend
-cd backend
-uv venv .venv && . .venv/bin/activate && uv pip install -e ".[dev]"
-python -m app.cli seed-demo          # reference data + demo companies and personas
-uvicorn app.main:app --reload --port 8000
+**Easiest: one command.** You need [Python 3.12+](https://www.python.org/downloads/) and
+[Node.js 20+](https://nodejs.org/). The first run installs everything (a few minutes); later runs start in
+seconds. The app opens at http://localhost:8000 with the demo data loaded.
 
-# frontend (second terminal)
-cd frontend
-npm install
-npm run dev                          # http://localhost:5173
+```bash
+# macOS / Linux
+./start.sh
+
+# Windows (PowerShell)
+powershell -ExecutionPolicy Bypass -File .\start.ps1
 ```
 
-Open http://localhost:5173, pick a language, press **Sign in with UAE Pass** and choose a test persona.
+**With Docker instead** (no Python or Node needed): `docker compose up --build`, then open
+http://localhost:8000. Data is kept in a Docker volume between runs.
 
-| Persona | Role | Lands on |
-| --- | --- | --- |
-| Khalid | Owner of Al Noor Trading and Safwa Foods | Welcome, then the company dashboard |
-| Priya | Owner abroad (visitor UAE PASS profile) of Blue Dune | Welcome, then a read-mostly dashboard |
-| Omar | Accountant delegate for three companies | Delegate portfolio |
-| Layla | Licensed auditor | Auditor workspace |
-| Sara, Faisal | DET administrator, DET pilot manager | DET dashboard |
-| Ahmed | DET complaint handler | Requests and complaints |
-| Noura | Compliance and audit-trail reviewer | Audit trail |
-| Hassan, Mariam, Yusuf | Tax specialist, legal specialist, escalation operations | Case queue |
-| Adel, Lina | Platform security administrator, Qeonix product owner | Audit trail, configuration register |
+Use another port with `PORT=9000 ./start.sh`. To start over with fresh demo data, delete `backend/data/`.
 
-The refusal cases are also personas: an SOP1 account (refused), a verified identity with no company role,
-and an owner whose DET record has no Emirates ID (no owner role).
+**For development** (hot reload on two ports):
 
-Or with containers: `docker compose up --build` (backend on 8000, portal on 5173).
+```bash
+cd backend && uv venv .venv && . .venv/bin/activate && uv pip install -e ".[dev]"
+python -m app.cli seed-demo && uvicorn app.main:app --reload --port 8000
+cd frontend && npm install && npm run dev      # http://localhost:5173
+```
 
 ## Tests and checks
 
