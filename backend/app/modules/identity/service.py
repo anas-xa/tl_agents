@@ -195,6 +195,9 @@ def complete_signin(db: Session, *, state: str, code: str | None, error: str | N
 
     if invitation_token:
         bind_staff_invitation(db, invitation_token, identity.uuid)
+    from app.modules.delegates.service import bind_pending_delegate_invitations
+
+    bind_pending_delegate_invitations(db, identity.uuid, hash_emirates_id(assertion.idn) if assertion.idn else None)
 
     roles = resolve_roles(db, identity.uuid, det_match_result=match)
     owner_roles_blocked = roles["owner_blocked"]

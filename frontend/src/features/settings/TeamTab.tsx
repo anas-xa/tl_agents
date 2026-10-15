@@ -1,0 +1,273 @@
+import { useCallback, useEffect, useRef, useState } from 'react'
+import { useTranslation } from 'react-i18next'
+import { useAuth } from '../../app/auth'
+import { Button, Chip, Dialog, Empty, Message, Panel, Skeleton, Table } from '../../components/ui'
+import { ApiError, del, get, patch, post } from '../../lib/api'
+import { formatDate, formatDateTime } from '../../lib/format'
+import AddDelegateDialog from './AddDelegateDialog'
+import { RightsSummary, RightsToggles } from './RightsToggles'
+import type { Change, DelegatesResponse, Person, Quarantined, Toggle } from './types'
+
+type Notice = { kind: 'info' | 'error' | 'success'; text: string }
+
+/** SC11 team tab: people list (table desktop / cards mobile), invite, edit, suspend, remove, quarantine prompt, recent access changes. */
+export default function TeamTab({ companyId }: { companyId: string }) {
+  const { t, i18n } = useTranslation('settings')
+  const { me, company } = useAuth()
+  const [data, setData] = useState<DelegatesResponse | null>(null)
+  const [err, setErr] = useState<string | null>(null)
+  const [notice, setNotice] = useState<Notice | null>(null)
+  const [inviteOpen, setInviteOpen] = useState(false)
+  const [editing, setEditing] = useState<Person | null>(null)
+  const [removing, setRemoving] = useState<Person | null>(null)
+  const noticeRef = useRef<HTMLDivElement>(null)
+  const lang = i18n.language.startsWith('ar') ? 'ar' : 'en'
+
+  const load = useCallback(async () => {
+    try {
+      setData(await get<DelegatesResponse>(`/api/companies/${companyId}/delegates`))
+      setErr(null)
+    } catch (e) {
+      setErr(e instanceof ApiError ? e.message : (e as Error).message)
+    }
+  }, [companyId])
+  useEffect(() => {
+    load()
+  }, [load])
+  useEffect(() => {
+    if (notice) noticeRef.current?.focus()
+  }, [notice])
+
+  if (err) return <Message kind="error">{err}</Message>
+  if (!data) return <Skeleton rows={4} />
+
+  const companyName = company ? (lang === 'ar' ? company.trade_name_ar : company.trade_name_en) : ''
+  const auth = data.authority
+  const isOwnerView = data.scope === 'all'
+  const refusal = (e: unknown, fallback: string) => {
+    const code = e instanceof ApiError ? e.code : ''
+    if (code === 'LEVEL_TOO_LOW_FOR_ACTION') return t('reauth_failed')
+    if (code === 'NO_PERMISSION' || code === 'OWNER_ONLY') return t('owner_only')
+    if (code === 'RIGHT_SWITCHED_OFF') return t('locked')
+    if (code === 'COMPANY_ON_HOLD') return t('on_hold')
+    if (code === 'DET_DATA_STALE') return t('stale')
+    return fallback
+  }
+  const act = async (fn: () => Promise<unknown>, ok: string, fallback: string) => {
+    try {
+      await fn()
+      setNotice({ kind: 'success', text: ok })
+      await load()
+    } catch (e) {
+      setNotice({ kind: 'error', text: refusal(e, fallback) })
+    }
+  }
+  const chipTone = (c: Person['chip']) => (c === 'active' ? 'ok' : c === 'pending' ? 'attention' : c === 'suspended' ? 'urgent' : 'neutral')
+  const rightsText = (p: Person) => (p.role === 'delegate' ? p.toggles.map((x) => t(`fn_${x}`)).join(', ') || t('off') : t('roles.owner', { ns: 'translation' }))
+  const nameOf = (p: Person) => p.display_name || '—'
+
+  const notices = (
+    <>
+      {notice && (
+        <div ref={noticeRef} tabIndex={-1}>
+          <Message kind={notice.kind}>{notice.text}</Message>
+        </div>
+      )}
+      {auth.hold_state === 'no_owner' && isOwnerView && (
+        <Panel tone="warning" title={t('no_owner_title')} id="no-owner">
+          <p>{t('no_owner')}</p>
+          <p><strong>{t('no_owner_next')}</strong></p>
+        </Panel>
+      )}
+      {auth.hold_state === 'no_owner' && !isOwnerView && <Message kind="warning">{t('no_owner_delegate')}</Message>}
+      {auth.hold_state === 'signatory_change_hold' && <Message kind="warning">{t('on_hold')}{auth.det_operations_alerted_at && <div>{t('on_hold_alerted')}</div>}</Message>}
+      {auth.stale && <Message kind="warning">{t('stale')} <span className="muted">({t('last_updated')}: {auth.det_refreshed_at ? formatDateTime(auth.det_refreshed_at, lang) : '—'})</span></Message>}
+    </>
+  )
+
+  if (!isOwnerView) {
+    const own = data.own
+    const self = data.people[0]
+    return (
+      <div>
+        {notices}
+        <Panel title={t('own_title')} id="own-rights">
+          <p><strong><bdi>{companyName}</bdi></strong> {self && <Chip tone={chipTone(self.chip)}>{t(`chip_${self.chip}`)}</Chip>} {self?.authority_label && <Chip tone="urgent">{t('suspended_authority_changed')}</Chip>}</p>
+          <p className="helper">{t('own_body')}</p>
+          {own && <RightsToggles value={own.toggles} meta={data.toggles} readOnly />}
+          <p className="helper">{t('delegate_refused_own')}</p>
+        </Panel>
+        {data.recent_changes.length > 0 && <RecentChanges changes={data.recent_changes} lang={lang} />}
+      </div>
+    )
+  }
+
+  const delegates = data.people.filter((p) => p.role === 'delegate')
+  const owners = data.people.filter((p) => p.role !== 'delegate')
+  const byDelegate = groupQuarantine(data.quarantine)
+  const canManage = auth.hold_state === 'none' && !auth.stale && me?.det_match_result === 'matched'
+
+  return (
+    <div>
+      {notices}
+      {byDelegate.map((g) => (
+        <Panel key={g.identity} tone="warning" title={t('quarantine_title')} id={`q-${g.identity}`}>
+          <p>{t('drafts_on_hold', { n: g.items.length, name: g.name })}</p>
+          <ul>
+            {g.items.map((q) => (
+              <li key={q.id} style={{ marginBottom: 8 }}>
+                <bdi dir="ltr" className="ident">{q.draft_ref}</bdi> · {q.draft_type} · <Chip tone="draft">{t('initiated_by_removed')}</Chip> {q.is_demo && <Chip tone="info">{t('status.demo_data', { ns: 'translation' })}</Chip>}
+                <div className="actions">
+                  <Button onClick={() => act(() => post(`/api/companies/${companyId}/delegates/quarantine/${q.id}/decide`, { decision: 'keep' }), t('q_decided'), t('save_failed'))}>{t('keep')}</Button>
+                  <Button variant="secondary" onClick={() => act(() => post(`/api/companies/${companyId}/delegates/quarantine/${q.id}/decide`, { decision: 'reassign' }), t('q_decided'), t('save_failed'))}>{t('reassign')}</Button>
+                  <Button variant="danger" onClick={() => act(() => post(`/api/companies/${companyId}/delegates/quarantine/${q.id}/decide`, { decision: 'discard' }), t('q_decided'), t('save_failed'))}>{t('discard')}</Button>
+                </div>
+              </li>
+            ))}
+          </ul>
+        </Panel>
+      ))}
+      <Panel
+        title={t('people')}
+        id="people"
+        actions={
+          <>
+            <span className="muted">{t('last_updated')}: {formatDateTime(data.last_updated, lang)}</span>
+            <Button variant="secondary" onClick={load}>{t('refresh')}</Button>
+            <Button onClick={() => setInviteOpen(true)} disabled={!canManage} title={!canManage ? (auth.hold_state !== 'none' ? t('on_hold') : auth.stale ? t('stale') : t('no_owner')) : undefined}>{t('invite')}</Button>
+          </>
+        }
+      >
+        {!canManage && <p className="helper">{auth.hold_state !== 'none' ? t('on_hold') : auth.stale ? t('stale') : t('no_owner')}</p>}
+        <p className="helper">{t('statement')}</p>
+        {delegates.length === 0 && <Empty icon="▭" title={t('empty')} action={<Button onClick={() => setInviteOpen(true)} disabled={!canManage}>{t('invite')}</Button>} />}
+        <div className="people-table">
+          <Table headers={[t('col_name'), t('col_role'), t('col_status'), t('col_rights'), t('col_since'), t('col_actions')]}>
+            {[...owners, ...delegates].map((p) => (
+              <tr key={p.id}>
+                <td><bdi>{nameOf(p)}</bdi>{p.name_differs && <div className="notice-tbc">{t('name_differs')}</div>}{p.dormant_flag && <div className="notice-tbc">{t('dormant')}</div>}</td>
+                <td>{t(`roles.${p.role}`, { ns: 'translation' })}</td>
+                <td><Chip tone={chipTone(p.chip)}>{t(`chip_${p.chip}`)}</Chip>{p.authority_label && <div><Chip tone="urgent">{t('suspended_authority_changed')}</Chip></div>}{p.kind === 'invitation' && p.chip === 'pending' && <div className="helper">{t('pending_waiting', { name: nameOf(p) })}</div>}</td>
+                <td>{rightsText(p)}</td>
+                <td>{formatDate(p.granted_at, lang)}</td>
+                <td>{p.role === 'delegate' && <RowActions p={p} canManage={canManage} onEdit={() => setEditing(p)} onRemove={() => setRemoving(p)} onAct={act} companyId={companyId} />}</td>
+              </tr>
+            ))}
+          </Table>
+        </div>
+        <div className="people-cards">
+          {[...owners, ...delegates].map((p) => (
+            <div className="card" key={p.id}>
+              <div><strong><bdi>{nameOf(p)}</bdi></strong> · {t(`roles.${p.role}`, { ns: 'translation' })}</div>
+              <div><Chip tone={chipTone(p.chip)}>{t(`chip_${p.chip}`)}</Chip> {p.authority_label && <Chip tone="urgent">{t('suspended_authority_changed')}</Chip>} {p.name_differs && <span className="notice-tbc">{t('name_differs')}</span>}</div>
+              <div className="muted">{rightsText(p)} · {formatDate(p.granted_at, lang)}</div>
+              {p.dormant_flag && <div className="notice-tbc">{t('dormant')}</div>}
+              {p.role === 'delegate' && <RowActions p={p} canManage={canManage} onEdit={() => setEditing(p)} onRemove={() => setRemoving(p)} onAct={act} companyId={companyId} />}
+            </div>
+          ))}
+        </div>
+      </Panel>
+      <RecentChanges changes={data.recent_changes} lang={lang} />
+      <AddDelegateDialog key={String(inviteOpen)} open={inviteOpen} companyId={companyId} meta={data.toggles} onClose={() => setInviteOpen(false)} onDone={(msg) => { setNotice({ kind: 'success', text: msg }); load() }} />
+      {editing && <EditRightsDialog p={editing} companyId={companyId} meta={data.toggles} onClose={() => setEditing(null)} onDone={(name) => { setEditing(null); setNotice({ kind: 'success', text: t('rights_updated', { name }) }); load() }} onError={(m) => setNotice({ kind: 'error', text: m })} refusal={refusal} />}
+      {removing && (
+        <Dialog open title={t('remove_title', { name: nameOf(removing) })} onClose={() => setRemoving(null)} labelledBy="remove-title">
+          <p>{t('remove_body')}</p>
+          <div className="actions">
+            <Button variant="danger" onClick={() => { const p = removing; setRemoving(null); act(() => del(`/api/companies/${companyId}/delegates/${p.id}`), t('delegate_removed'), t('changes_not_saved')) }}>{t('remove')}</Button>
+            <Button variant="secondary" onClick={() => setRemoving(null)}>{t('common.cancel', { ns: 'translation' })}</Button>
+          </div>
+        </Dialog>
+      )}
+    </div>
+  )
+}
+
+function RowActions({ p, canManage, onEdit, onRemove, onAct, companyId }: { p: Person; canManage: boolean; onEdit: () => void; onRemove: () => void; onAct: (fn: () => Promise<unknown>, ok: string, fallback: string) => Promise<void>; companyId: string }) {
+  const { t } = useTranslation('settings')
+  if (p.kind === 'invitation') {
+    if (p.status !== 'pending' && p.status !== 'expired') return null
+    return (
+      <div className="actions">
+        <Button variant="secondary" disabled={!canManage} onClick={() => onAct(() => post(`/api/companies/${companyId}/delegates/invitations/${p.id}/resend`), t('invited_ok'), t('invite_failed'))}>{t('resend')}</Button>
+        {p.status === 'pending' && <Button variant="link" disabled={!canManage} onClick={() => onAct(() => post(`/api/companies/${companyId}/delegates/invitations/${p.id}/withdraw`), t('delegate_removed'), t('changes_not_saved'))}>{t('withdraw')}</Button>}
+      </div>
+    )
+  }
+  if (p.chip === 'removed') return null
+  return (
+    <div className="actions">
+      <Button variant="secondary" disabled={!canManage} onClick={onEdit}>{t('edit_rights')}</Button>
+      {p.status === 'active' && <Button variant="secondary" disabled={!canManage} onClick={() => onAct(() => post(`/api/companies/${companyId}/delegates/${p.id}/suspend`), t('rights_updated', { name: p.display_name || '' }), t('changes_not_saved'))}>{t('suspend')}</Button>}
+      {p.status === 'suspended' && <Button variant="secondary" disabled={!canManage} onClick={() => onAct(() => post(`/api/companies/${companyId}/delegates/${p.id}/reinstate`), t('rights_updated', { name: p.display_name || '' }), t('changes_not_saved'))}>{t('reinstate')}</Button>}
+      <Button variant="danger" disabled={!canManage} onClick={onRemove}>{t('remove')}</Button>
+    </div>
+  )
+}
+
+function EditRightsDialog({ p, companyId, meta, onClose, onDone, onError, refusal }: { p: Person; companyId: string; meta: DelegatesResponse['toggles']; onClose: () => void; onDone: (name: string) => void; onError: (m: string) => void; refusal: (e: unknown, fallback: string) => string }) {
+  const { t } = useTranslation('settings')
+  const [value, setValue] = useState<Toggle[]>(p.toggles)
+  const [confirm, setConfirm] = useState(false)
+  const [saving, setSaving] = useState(false)
+  const name = p.display_name || '—'
+  const save = async () => {
+    setSaving(true)
+    try {
+      await patch(`/api/companies/${companyId}/delegates/${p.id}`, { toggles: value })
+      onDone(name)
+    } catch (e) {
+      onError(refusal(e, t('save_failed')))
+      onClose()
+    } finally {
+      setSaving(false)
+    }
+  }
+  return (
+    <Dialog open title={t('edit_title', { name })} onClose={onClose} labelledBy="edit-title">
+      <p className="helper">{t('edit_body')}</p>
+      {!confirm ? (
+        <>
+          <RightsToggles value={value} onChange={setValue} meta={meta} />
+          <div className="actions"><Button onClick={() => setConfirm(true)}>{t('common.next', { ns: 'translation' })}</Button><Button variant="secondary" onClick={onClose}>{t('common.cancel', { ns: 'translation' })}</Button></div>
+        </>
+      ) : (
+        <>
+          <RightsSummary value={value} />
+          <div className="actions" aria-live="polite">
+            <Button onClick={save} disabled={saving}>{saving ? t('common.saving', { ns: 'translation' }) : t('confirm_rights')}</Button>
+            <Button variant="secondary" onClick={() => setConfirm(false)} disabled={saving}>{t('common.back', { ns: 'translation' })}</Button>
+          </div>
+        </>
+      )}
+    </Dialog>
+  )
+}
+
+function RecentChanges({ changes, lang }: { changes: Change[]; lang: string }) {
+  const { t } = useTranslation('settings')
+  return (
+    <Panel title={t('recent_changes')} id="recent-changes">
+      {changes.length === 0 ? <p className="muted">{t('common.none', { ns: 'translation' })}</p> : (
+        <ul className="timeline">
+          {changes.map((c) => (
+            <li key={c.id}>
+              <span className="muted">{formatDateTime(c.changed_at, lang)}</span>
+              <span>{c.change_type.replace(/_/g, ' ')} · <bdi>{c.delegate_label || '—'}</bdi>{c.changed_by_name && <span className="muted"> · <bdi>{c.changed_by_name}</bdi> ({c.changed_by_role && t(`roles.${c.changed_by_role}`, { ns: 'translation', defaultValue: c.changed_by_role })})</span>}</span>
+            </li>
+          ))}
+        </ul>
+      )}
+    </Panel>
+  )
+}
+
+function groupQuarantine(items: Quarantined[]) {
+  const map = new Map<string, { identity: string; name: string; items: Quarantined[] }>()
+  for (const q of items) {
+    const g = map.get(q.delegate_identity_uuid) ?? { identity: q.delegate_identity_uuid, name: q.delegate_name || '—', items: [] }
+    g.items.push(q)
+    map.set(q.delegate_identity_uuid, g)
+  }
+  return [...map.values()]
+}

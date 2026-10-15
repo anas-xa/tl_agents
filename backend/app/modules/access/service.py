@@ -27,24 +27,25 @@ OWNER_PERMS = {
     "audit.request_review", "escalation.open", "escalation.view", "delegates.manage", "settings.manage",
     "subscription.view", "subscription.change", "reminders.manage", "uploads.manage", "links.manage",
     "complaints.open", "taxprofile.edit", "filing.record", "grants.create",
+    "bookkeeping.quarantine.decide", "docguard.review",  # E5: owner-only quarantine decisions (drafts, documents)
 }
-REMOTE_OWNER_PERMS = {"dashboard.view", "deadlines.view", "documents.view", "documents.download", "reminders.manage", "settings.manage", "subscription.view", "consent.view", "escalation.view", "escalation.open", "audit.view", "tax.view", "returns.view", "complaints.open"}
+REMOTE_OWNER_PERMS = {"dashboard.view", "deadlines.view", "documents.view", "documents.download", "reminders.manage", "settings.manage", "subscription.view", "consent.view", "escalation.view", "escalation.open", "audit.view", "tax.view", "returns.view", "complaints.open", "taxprofile.edit"}
 DELEGATE_BASE_PERMS = {"dashboard.view", "deadlines.view", "documents.view", "documents.download", "consent.view", "tax.view", "tax.prepare", "tax.correct", "returns.view", "returns.send_for_approval", "audit.view", "escalation.open", "escalation.view", "uploads.manage", "links.manage", "portfolio.view", "settings.view_own", "taxprofile.edit", "subscription.view"}
 DELEGATE_RIGHT_PERMS = {"grant_consent": {"consent.grant", "consent.withdraw"}, "approve_submissions": {"returns.approve"}, "change_subscription": {"subscription.change"}}
 AUDITOR_PERMS = {"engagements.view", "audit.review", "audit.record_review", "audit.sign", "audit.view", "documents.view"}
 SPECIALIST_PERMS = {"cases.view_assigned", "cases.work", "documents.view"}
-REVIEWER_PERMS = {"audit_trail.view", "agent_records.view", "audit_trail.export", "escalation_dashboard.view", "config.view"}
+REVIEWER_PERMS = {"audit_trail.view", "agent_records.view", "audit_trail.export", "escalation_dashboard.view", "config.view", "delegates.history.view"}
 # Staff roles
 STAFF_PERMS: dict[str, set[str]] = {
-    "det_admin": {"det.aggregates.view", "det.per_licence.view", "det.cohort.view", "escalation_dashboard.view", "audit_trail.view_summary", "config.view"},
-    "det_pilot_manager": {"det.aggregates.view", "det.cohort.manage", "det.cohort.view", "det.per_licence.view", "config.view", "config.change_pilot", "cases.queue_fallback", "det.phase_switches"},
+    "det_admin": {"det.aggregates.view", "det.per_licence.view", "det.cohort.view", "escalation_dashboard.view", "audit_trail.view_summary", "config.view", "det.cohort.manage", "det.cases.decide", "det.billing.reconcile"},
+    "det_pilot_manager": {"det.aggregates.view", "det.cohort.manage", "det.cohort.view", "det.per_licence.view", "config.view", "config.change_pilot", "cases.queue_fallback", "det.phase_switches", "det.cohort.approve", "det.cases.decide", "det.billing.reconcile", "cases.queue.view"},
     "det_complaint_handler": {"complaints.handle", "complaints.view"},
-    "det_compliance_lead": {"approval_compliance.view", "det.aggregates.view"},
+    "det_compliance_lead": {"approval_compliance.view", "det.aggregates.view", "cases.queue.view", "cases.work", "cases.view_assigned"},
     "compliance_reviewer": REVIEWER_PERMS,
-    "licensed_auditor": {"engagements.view"},
-    "tax_specialist": {"cases.queue.tax"},
-    "legal_specialist": {"cases.queue.legal"},
-    "escalation_ops": {"cases.assign", "cases.view_metadata", "cases.queue_alerts"},
+    "licensed_auditor": {"engagements.view", "cases.queue.audit", "cases.queue.view", "cases.work", "cases.view_assigned"},
+    "tax_specialist": {"cases.queue.tax", "cases.queue.view", "cases.work", "cases.view_assigned"},
+    "legal_specialist": {"cases.queue.legal", "cases.queue.view", "cases.work", "cases.view_assigned"},
+    "escalation_ops": {"cases.assign", "cases.view_metadata", "cases.queue_alerts", "cases.queue.view"},
     "platform_security_admin": {"staff_roles.manage", "config.change", "config.view", "residency.manage", "integrations.manage", "audit_trail.view", "probes.view"},
     "qeonix_product_owner": {"config.view", "config.change", "phase_map.record_demo", "approval_compliance.view", "integrations.manage", "residency.manage", "probes.view", "catalogue.manage"},
     "qeonix_audit_ops": {"audit.prepare", "engagements.view"},

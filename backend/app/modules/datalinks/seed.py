@@ -1,0 +1,177 @@
+"""Data-link configuration, rule register entries, route-holder register, bank list and demo data. ORDER 35."""
+
+from __future__ import annotations
+
+from datetime import date, timedelta
+
+from sqlalchemy import select
+from sqlalchemy.orm import Session
+
+from app.core.time import utcnow
+from app.demo import CO_ALNOOR, CO_BLUEDUNE, CO_GULFTECH, PERSONA_UUIDS
+from app.modules.access.service import Principal
+from app.modules.audit.service import ensure_identity_mapping
+from app.modules.config.service import ensure_config, ensure_rule
+from app.modules.datalinks import service as svc
+from app.modules.datalinks.models import (
+    BankConfig,
+    BankLink,
+    RouteHolderRegister,
+    StatementUpload,
+    TaxAuthorityLink,
+    TaxProfile,
+)
+
+ORDER = 35
+
+K27_WINDOWS_V1 = {
+    "bank": {"expected_interval_h": 24, "tolerance_h": 6, "stale_after_h": 48, "note": "conflicting estimates recorded: 30 h (Q77), 36 h (Q55), 48 h (Q388); tune in pilot"},
+    "det": {"expected_interval_h": 24, "tolerance_h": 6, "stale_after_h": 72},
+    "fta": {"expected_interval_h": 24, "tolerance_h": 6, "stale_after_h": 72, "note": "Q77 gives 30 h; excluded from K27 until live"},
+    "erp": {"expected_interval_h": 24, "tolerance_h": 6, "stale_after_h": 72, "note": "Q77 gives 48 h for cloud ERP; Phase 1 has no connector"},
+    "e_invoice": {"expected_interval_h": 1, "tolerance_h": 1, "stale_after_h": 24, "note": "inactive before 1 Jan 2027 (AED 50m+) / 1 Jul 2027; excluded from K27"},
+}
+BANKS = [
+    ("demo_bank", "Demo Bank (fixture)", "البنك التجريبي (بيانات تجريبية)", True),
+    ("enbd", "Emirates NBD", "بنك الإمارات دبي الوطني", False),
+    ("adcb", "Abu Dhabi Commercial Bank", "بنك أبوظبي التجاري", False),
+    ("fab", "First Abu Dhabi Bank", "بنك أبوظبي الأول", False),
+    ("mashreq", "Mashreq", "المشرق", False),
+    ("dib", "Dubai Islamic Bank", "بنك دبي الإسلامي", False),
+    ("rakbank", "RAKBANK", "بنك رأس الخيمة الوطني", False),
+    ("cbd", "Commercial Bank of Dubai", "بنك دبي التجاري", False),
+]
+
+
+def seed(db: Session) -> None:
+    eng, prod, dom = "Qeonix engineering lead", "Qeonix product owner", "Qeonix domain data lead"
+    ensure_config(db, "datalinks.route_holder", "licensed_provider_partner", owner="Operator / Legal", status="to_be_confirmed", label="start value; CBUAE and law firm confirm; values licensed_provider_partner | own_licence | none")
+    ensure_config(db, "datalinks.openfinance.enabled", False, owner=prod, status="to_be_confirmed", label="OFF until the integration checklist row for the licensed Open Finance route (Nebras / Al Tareq) is confirmed live")
+    ensure_config(db, "datalinks.bank.consent_max_duration_months", 12, unit="months", owner=prod, status="provisional", label="configurable; route max if shorter")
+    ensure_config(db, "datalinks.bank.expiry_notice_offsets_days", [30, 14, 7], unit="days before", owner=prod, status="provisional", label="SC5 renew prompt default 14 days before")
+    ensure_config(db, "datalinks.bank.revocation_poll_interval_minutes", 15, unit="minutes", owner=eng, status="provisional")
+    ensure_config(db, "datalinks.bank.pull_schedule", {"time": "02:00", "timezone": "Asia/Dubai", "frequency": "daily"}, owner=eng, status="provisional", label="configurable")
+    ensure_config(db, "datalinks.bank.pull_retries", {"attempts": 3, "delays_minutes": [1, 5, 15], "jitter": True, "then": "Error"}, owner=eng, status="provisional", label="illustrative")
+    ensure_config(db, "datalinks.bank.on_demand_refresh_limit_per_day", 3, unit="pulls per account per day", owner=prod, status="provisional", label="a few pulls/day/account within bank and platform rate limits")
+    ensure_config(db, "datalinks.upload.max_size_mb", 20, unit="MB", owner=prod, status="provisional", label="configurable; UI/Q386 cite 10 MB illustrative - conflict noted, 20 MB (Q387) used")
+    ensure_config(db, "datalinks.upload.max_rows", 50000, unit="rows", owner=prod, status="provisional", label="configurable")
+    ensure_config(db, "datalinks.upload.invalid_row_threshold_percent", 20, unit="%", owner=prod, status="provisional", label="configurable; whole file refused above this")
+    ensure_config(db, "datalinks.upload.formats", ["csv", "xlsx", "pdf"], owner=prod, status="provisional", label="CSV, XLSX, text-based PDF; encrypted or image-only PDF refused")
+    ensure_config(db, "datalinks.upload.statement_age_amber_days", 35, unit="days after statement end", owner=dom, status="provisional", label="estimate; 'Update due' badge")
+    ensure_config(db, "datalinks.upload.retention_after_withdrawal_days", 30, unit="days", owner=prod, status="provisional", label="illustrative; lock then delete; owner may request earlier; production with DET and counsel")
+    ensure_config(db, "datalinks.upload.notice_version", "v1", owner="Qeonix product owner / Legal", status="provisional", label="notice-and-consent record wording for uploads (data submission, not consent)")
+    ensure_config(db, "datalinks.erp.supported_systems", [], owner="PM with pilot cohort (E2-S5)", status="confirmed", label="pilot: none; connector list is versioned config starting EMPTY (Q64)")
+    ensure_config(db, "datalinks.erp.vendor_flags", {"zoho_books": False, "quickbooks": False, "tally": False, "sap": False}, owner="PM / Security", status="to_be_confirmed", label="per-vendor flag, off for production data until DET and DESC confirm outbound calls in writing")
+    ensure_config(db, "datalinks.erp.file_upload_enabled", True, owner=prod, status="confirmed", label="ON from wave 1a; decided, not a switch")
+    ensure_config(db, "datalinks.erp.vendor_preconditions", ["entered in the residency register", "DET and DESC accept outbound calls if hosted outside the UAE", "company has given the separate ledger and invoice data authorisation"], owner=prod, status="confirmed", label="three preconditions before a vendor is added")
+    ensure_config(db, "datalinks.erp.refresh_window_hours", {}, owner=eng, status="to_be_confirmed", label="[OPEN] per system")
+    ensure_config(db, "datalinks.erp.debits_equal_credits_tolerance_fils", None, unit="fils", owner="Tech lead", status="to_be_confirmed", label="[OPEN] Q63")
+    ensure_config(db, "datalinks.erp.open_items_q63", {"retry_backoff": "open", "idempotency_replace_vs_version": "open", "deleted_at_source": "open", "invoice_match_keys_and_tolerance": "open", "reauth_notification_channel": "open"}, owner="Tech lead", status="to_be_confirmed", label="[OPEN] Q63")
+    ensure_config(db, "datalinks.erp.raw_purge_after_withdrawal_days", 30, unit="days", owner=prod, status="provisional", label="~30 provisional")
+    ensure_config(db, "datalinks.tax.adapter.enabled", False, owner="PM / E1-S8", status="to_be_confirmed", label="OFF until the E1-S8 FTA row is complete; no machine access assumed")
+    ensure_config(db, "datalinks.tax.channel", {"channel": "open", "formats": "open", "auth_method": "open", "legal_basis": "open"}, owner="FTA", status="to_be_confirmed", label="[OPEN]")
+    ensure_config(db, "datalinks.tax.stale_threshold_days", 7, unit="days", owner="UX (demo parameter)", status="provisional", label="demo; production set with DET")
+    ensure_config(db, "datalinks.tax.poll_boost_before_due", "every 6 h (Q77) / hourly (Q392) in the 7 days before a due date", owner=dom, status="provisional", label="configuration only; estimate")
+    ensure_config(db, "datalinks.tax.freshness_placeholder_hours", 24, unit="hours", owner=prod, status="provisional", label="Q70 placeholder for status")
+    ensure_config(db, "datalinks.tax.accepted_identity_levels_and_signature_types", [], owner="DET / UAE PASS / FTA", status="to_be_confirmed", label="[OPEN] empty until confirmed")
+    ensure_config(db, "datalinks.tax.remote_owner_consent_allowed", False, owner=prod, status="confirmed", label="not allowed in MVP (Q72)")
+    ensure_config(db, "datalinks.tax.sbr_period_cutoff", "2026-12-31", unit="date", owner="[REG] confirm", status="to_be_confirmed", label="Small Business Relief covers periods ending on or before 31 Dec 2026 [REG, confirm]; indicator only")
+    ensure_config(db, "datalinks.tax.ct_due_rule", "9 months after period end", owner="[REG]", status="to_be_confirmed", label="[REG] rule register ct-due-v1")
+    ensure_config(db, "datalinks.tax.vat_due_rule", "28 days after period end", owner="[REG]", status="to_be_confirmed", label="[REG] rule register vat-due-v1")
+    ensure_config(db, "datalinks.tax.trn_pattern", r"^100\d{12}$", owner="Tech lead", status="to_be_confirmed", label="[OPEN] Q390 manual field validation; 15 digits starting 100 assumed")
+    ensure_config(db, "datalinks.tax.filing_frequencies", ["monthly", "quarterly", "annual"], owner="Tech lead", status="to_be_confirmed", label="[OPEN] Q390 value list")
+    ensure_config(db, "datalinks.tax.det_admin_small_group_suppression", 10, unit="count", owner="DET", status="provisional", label="groups < 10 suppressed")
+    ensure_config(db, "datalinks.k27.window_calendar_mode", "plain_elapsed", owner=prod, status="confirmed", label="Q78: plain elapsed calendar time; no skipping of weekends, holidays or downtime in Phase 1")
+    ensure_config(db, "datalinks.k27.reporting_lines", ["connector", "uploaded"], owner=prod, status="confirmed", label="Q78: two lines; uploaded-data line is the pilot headline")
+    ensure_config(db, "datalinks.links.connecting_timeout_minutes", 15, unit="minutes", owner=prod, status="provisional", label="placeholder, versioned: 'Still connecting. If this continues, contact support.'")
+    ensure_config(db, "datalinks.links.status_check_delayed_after_hours", 6, unit="hours", owner=eng, status="to_be_confirmed", label="[OPEN] Q402 delayed-detection trigger and N")
+    ensure_config(db, "datalinks.links.manual_upload_reminder_days", 35, unit="days", owner=prod, status="provisional", label="fits monthly bookkeeping")
+    ensure_config(db, "datalinks.links.loading_slow_threshold_seconds", 10, unit="seconds", owner="Qeonix UX lead", status="provisional")
+    ensure_rule(db, "k27-windows-v1", "K27 freshness windows per source (expected interval / tolerance / stale after)", instrument="pilot operating rule", status="provisional", owner_role="Qeonix domain data lead", parameters={"windows": K27_WINDOWS_V1, "mode": "plain_elapsed", "holiday_note": "informational only; no threshold change"})
+    ensure_rule(db, "vat-due-v1", "VAT return due date: 28 days after the end of the tax period", instrument="Federal Decree-Law No. 8 of 2017 and Cabinet Decision 52 of 2017 (to be confirmed)", status="to_be_confirmed", owner_role="Tax specialist", parameters={"days_after_period_end": 28})
+    ensure_rule(db, "ct-due-v1", "Corporate tax return due date: 9 months after the end of the tax period", instrument="Federal Decree-Law No. 47 of 2022 (to be confirmed)", status="to_be_confirmed", owner_role="Tax specialist", parameters={"months_after_period_end": 9})
+    if db.scalar(select(RouteHolderRegister).where(RouteHolderRegister.is_current.is_(True))) is None:
+        db.add(RouteHolderRegister(version=1, route_holder="licensed_provider_partner", provider_legal_name=None, cbuae_licence_reference=None, authorised_activities=["account information service"], agreement_signed=False, consent_model={"who_consents": "authorised signatory", "scope": ["accounts", "data types", "purpose", "period"], "revocation": "provider flow; consent identifier mirrored"}, processing_location="to be confirmed (ties to residency register)", revocation_flow="provider revocation flow (to be confirmed)", coverage_confirmed=False, status="to_be_confirmed", label="start value: licensed_provider_partner; coverage unconfirmed; bank link refused until evidence complete", effective_from=date.today()))
+    for bank_id, en, ar, demo in BANKS:
+        if db.get(BankConfig, bank_id) is None:
+            db.add(BankConfig(bank_id=bank_id, name_en=en, name_ar=ar, demo=demo, coverage_status="unconfirmed", corporate_account_types_live=[]))
+    db.flush()
+
+
+ALNOOR_STATEMENT = """Date,Description,Debit,Credit,Balance,Currency,Reference
+2026-08-01,Opening balance / الرصيد الافتتاحي,,,"152,340.50",AED,OB-0801
+2026-08-02,Ejari rent Q3 - Business Bay office / إيجار إيجاري الربع الثالث,"42,000.00",,"110,340.50",AED,TRF-88102
+2026-08-03,DEWA bill July / فاتورة هيئة كهرباء ومياه دبي,"3,215.75",,"107,124.75",AED,DEWA-0703
+2026-08-04,Customer receipt INV-2026-0142 Al Fajer Trading / تحصيل فاتورة,,"18,750.00","125,874.75",AED,RCV-3341
+2026-08-05,Supplier payment Gulf Packaging LLC / دفعة للمورد,"9,870.00",,"116,004.75",AED,TRF-88130
+2026-08-06,Bank charges / رسوم مصرفية,105.00,,"115,899.75",AED,CHG-0806
+2026-08-07,Customer receipt INV-2026-0143 شركة الواحة للتجارة,,"27,300.00","143,199.75",AED,RCV-3342
+2026-08-10,Etisalat telecom August / اتصالات,842.00,,"142,357.75",AED,ETS-0810
+2026-08-12,Supplier payment Noor Logistics / نور للخدمات اللوجستية,"6,450.00",,"135,907.75",AED,TRF-88155
+2026-08-14,Customer receipt INV-2026-0144 Desert Line Co,,"12,400.00","148,307.75",AED,RCV-3343
+2026-08-15,FTA VAT payment Q2 2026 / سداد ضريبة القيمة المضافة,"21,860.00",,"126,447.75",AED,FTA-VAT-Q2
+2026-08-18,Owner drawing - Khalid / مسحوبات المالك,"15,000.00",,"111,447.75",AED,TRF-88170
+2026-08-20,Supplier payment Al Madar Stationery / القرطاسية,"1,230.50",,"110,217.25",AED,TRF-88181
+2026-08-22,Customer receipt INV-2026-0145 Blue Sky FZE,,"33,000.00","143,217.25",AED,RCV-3344
+2026-08-24,Refund to customer INV-2026-0139 / استرداد لعميل,"2,500.00",,"140,717.25",AED,TRF-88190
+2026-08-25,POS settlement - Network International / تسوية نقاط البيع,,"4,860.30","145,577.55",AED,POS-0825
+2026-08-26,Insurance premium - vehicle / قسط تأمين المركبة,"3,980.00",,"141,597.55",AED,TRF-88201
+2026-08-27,WPS salaries August / رواتب نظام حماية الأجور,"46,500.00",,"95,097.55",AED,WPS-0827
+2026-08-27,WPS salaries August / رواتب نظام حماية الأجور,"46,500.00",,"48,597.55",AED,WPS-0827
+2026-08-28,Customer receipt INV-2026-0146 ١٢٣ Trading / تحصيل,,"9,990.00","58,587.55",AED,RCV-3345
+2026-08-29,Bank charges - international transfer / رسوم تحويل دولي,75.00,,"58,512.55",AED,CHG-0829
+2026-08-30,Supplier payment Emirates Printing Press,"4,120.00",,"54,392.55",AED,TRF-88215
+2026-08-31,Interest / profit credit / أرباح الوديعة,, 312.40,"54,704.95",AED,INT-0831
+2026-08-31,Customer receipt INV-2026-0147 مؤسسة النخيل,,"16,250.00","70,954.95",AED,RCV-3346
+2026-08-31,Petty cash withdrawal / سحب نثريات,"2,000.00",,"68,954.95",AED,ATM-0831
+"""
+
+ALNOOR_TRIAL_BALANCE = """Account code,Account name,اسم الحساب,Debit,Credit
+1000,Cash at bank,النقد في البنك,"68,954.95",
+1100,Accounts receivable,ذمم مدينة,"41,200.00",
+2000,Accounts payable,ذمم دائنة,,"22,340.00"
+2100,VAT payable,ضريبة القيمة المضافة المستحقة,,"5,980.00"
+3000,Owner's equity,حقوق المالك,,"60,000.00"
+4000,Sales revenue,إيرادات المبيعات,,"117,690.00"
+5000,Cost of sales,تكلفة المبيعات,"52,355.05",
+6000,Rent expense,مصروف الإيجار,"42,000.00",
+6100,Salaries expense,مصروف الرواتب,"46,500.00",
+9999,Suspense,حساب معلق,"-45,000.00",
+"""
+
+
+def _principal(db: Session, persona: str, name: str) -> Principal:
+    uuid = PERSONA_UUIDS[persona]
+    return Principal(identity_uuid=uuid, actor_key=ensure_identity_mapping(db, uuid), display_name=name, assurance_level="SOP3", profile_type=1, language="en", session_id="seed-demo")
+
+
+def seed_demo(db: Session) -> None:
+    now = utcnow()
+    khalid = _principal(db, "khalid", "Khalid Al Mansoori")
+    # Al Noor: completed manual statement upload (~25 mixed Arabic/English lines) under its own declaration record
+    if db.scalar(select(StatementUpload).where(StatementUpload.company_id == CO_ALNOOR, StatementUpload.is_demo.is_(True))) is None:
+        up = svc.create_upload(db, khalid, CO_ALNOOR, file_name="alnoor-demo-bank-statement-aug-2026.csv", data=ALNOOR_STATEMENT.encode("utf-8"), kind="bank_statement", bank_id="demo_bank", bank_name="Demo Bank (fixture)", account_ref="AE07DEMO0000000001234", purpose="bookkeeping_classification", notice_acknowledged=True)
+        up.is_demo = True
+        up.uploaded_at = now - timedelta(days=12)
+        tb = svc.create_upload(db, khalid, CO_ALNOOR, file_name="alnoor-demo-trial-balance-aug-2026.csv", data=ALNOOR_TRIAL_BALANCE.encode("utf-8"), kind="erp_export", export_type="trial_balance", purpose="bookkeeping_classification", notice_acknowledged=True, period_start=date(2026, 8, 1), period_end=date(2026, 8, 31))
+        tb.is_demo = True
+        tb.uploaded_at = now - timedelta(days=11)
+    # Al Noor: tax profile company_provided (VAT quarterly, TRN 100xxxxxxxxxxxx, CT registered, SBR unknown)
+    if db.scalar(select(TaxProfile).where(TaxProfile.company_id == CO_ALNOOR)) is None:
+        vat = svc.set_tax_profile(db, khalid, CO_ALNOOR, {"tax_type": "vat", "trn": "100234567890003", "registration_status": "registered", "filing_status": "last return submitted (as provided by the company)", "tax_period_start": "2026-07-01", "tax_period_end": "2026-09-30", "filing_frequency": "quarterly", "source": "company_provided"})
+        vat.is_demo = True
+        ct = svc.set_tax_profile(db, khalid, CO_ALNOOR, {"tax_type": "corporate_tax", "trn": "100234567890004", "registration_status": "registered", "filing_status": "first period not yet due (as provided by the company)", "tax_period_start": "2026-01-01", "tax_period_end": "2026-12-31", "filing_frequency": "annual", "source": "company_provided", "small_business_relief": [{"period_end": "2026-12-31", "indicator": "unknown", "source": "unknown"}]})
+        ct.is_demo = True
+    # tax links: Al Noor manual/unverified (adapter off), Gulf Tech fixture 'error' state labelled Demo data
+    svc.tax_link(db, CO_ALNOOR)
+    gt = svc.tax_link(db, CO_GULFTECH)
+    if gt.fixture_key is None:
+        gt.fixture_key, gt.error_cause, gt.last_good_read_at = "error", "authority_not_responding", now - timedelta(days=2)
+    # Blue Dune: demo bank link bound to the withdrawn consent (badge 'Consent withdrawn' overrides technical active)
+    if db.scalar(select(BankLink).where(BankLink.company_id == CO_BLUEDUNE)) is None:
+        from app.modules.consent.models import Consent
+
+        c = db.scalar(select(Consent).where(Consent.company_id == CO_BLUEDUNE, Consent.consent_type == "bank_data_open_finance"))
+        db.add(BankLink(company_id=CO_BLUEDUNE, bank_id="demo_bank", consent_id=c.consent_id if c else None, consent_version=1, external_consent_id="ALT-DEMO-5678", status="consent_withdrawn", accounts=[{"account_ref": "AE12DEMO0000000005678", "masked": "•••• 5678", "holder_name": "Blue Dune Consultancy", "match_result": "automatic"}], last_good_pull_at=now - timedelta(days=4), data_as_of=(now - timedelta(days=4)).date(), accounts_refreshed=1, accounts_total=1, is_demo=True))
+    db.add(TaxAuthorityLink(company_id=CO_BLUEDUNE, status="not_available")) if db.scalar(select(TaxAuthorityLink).where(TaxAuthorityLink.company_id == CO_BLUEDUNE)) is None else None
+    db.flush()
