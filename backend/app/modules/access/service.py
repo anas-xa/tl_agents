@@ -180,3 +180,22 @@ def check_role_combination(db: Session, identity_uuid: str | None, company_id: s
             continue
         if pair in REFUSED_PAIRS:
             raise Forbidden("this role combination is not allowed on the same company or a related entity", reason_code="ROLE_COMBINATION_REFUSED", details={"pair": sorted(pair), "company_id": r.company_id})
+
+
+# --- E7 audit agent and documents (append-only additions) --------------------------------------------
+OWNER_PERMS |= {"documents.issue", "documents.share"}
+STAFF_PERMS["licensed_auditor"] |= {"audit.review", "audit.record_review", "audit.criteria.confirm"}
+STAFF_PERMS["qeonix_audit_ops"] |= {"audit.assign", "audit.review_queue"}
+STAFF_PERMS["det_pilot_manager"] |= {"audit.assign"}
+STAFF_PERMS["tax_specialist"] |= {"audit.criteria.propose"}
+STAFF_PERMS["platform_security_admin"] |= {"documents.revoke", "documents.switch", "audit.register.load"}
+STAFF_PERMS["qeonix_product_owner"] |= {"documents.switch", "audit.criteria.publish"}
+# E9-S1 SC14 KPIs: aggregate export, minimum group size (DET pilot manager), KPI calculation run log (reviewer).
+STAFF_PERMS["det_admin"] |= {"det.aggregates.export"}
+STAFF_PERMS["det_pilot_manager"] |= {"det.aggregates.export", "det.min_group_size.manage"}
+STAFF_PERMS["compliance_reviewer"] |= {"det.kpi_runs.view"}
+# E3 (dashboard, compliance agent, reminders): own reminder inbox/preferences for every company role that receives
+# reminders; compliance pack preparation (owner, delegate; remote owners read-only) and owner-only pack approval.
+OWNER_PERMS |= {"reminders.view", "compliance.prepare", "compliance.approve"}
+REMOTE_OWNER_PERMS |= {"reminders.view"}
+DELEGATE_BASE_PERMS |= {"reminders.view", "compliance.prepare"}

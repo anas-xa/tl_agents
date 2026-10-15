@@ -10,8 +10,9 @@ everywhere. Rules (versioned in rule ``det-suppression-v1``; N in ``det_dashboar
    subtraction' and subtraction across time series: a month series is never merged, only suppressed).
 3. Filter blocking: a filter that narrows the population below N blocks the whole result (no numbers).
 4. Totals are shown only when the total itself is >= N.
-5. Stepwise small-cohort rule: notice -> merge only the small categories into one 'Other (combined)' line
-   when that line reaches N (and at least one other category stays visible) -> otherwise the whole
+5. Stepwise small-cohort rule: notice -> merge the smallest categories (smallest first, only as many as
+   needed) into one 'Other (combined)' line when that line reaches N and at least one other category stays
+   visible -> otherwise the whole
    breakdown is 'not shown, group too small'. Categories are never merged across dimensions.
 6. No cross-tab of three or more dimensions when any cell is below N.
 7. Amounts also follow the dominance rule: an amount cell where one licence contributes more than the
@@ -152,12 +153,12 @@ def cell_text(cell: dict | None, lang: str = "en") -> str:
 
 
 def _hide_until_safe(sizes: list[float], hidden: set[int], n: int, *, publish_total: bool) -> set[int]:
-    """Complementary suppression: while the hidden cells add up to less than N (so a single small cell could
-    be recovered from the published total), hide the next-smallest visible non-zero cell."""
+    """Complementary suppression: while exactly one cell is hidden (recoverable from the published total by
+    subtraction) or the hidden cells add up to less than N, hide the next-smallest visible non-zero cell."""
     if not hidden or not publish_total:
         return set()
     added: set[int] = set()
-    while sum(abs(sizes[i]) for i in hidden | added) < n:
+    while len(hidden | added) == 1 or sum(abs(sizes[i]) for i in hidden | added) < n:
         visible = [i for i in range(len(sizes)) if i not in hidden and i not in added and sizes[i] != 0]
         if not visible:
             break
@@ -236,10 +237,18 @@ def suppress_table(
         small = [i for i, x in enumerate(src) if is_small(x.get(size_key), n)]
         row_hidden: dict[int, str] = {i: "suppressed_fewer_than_N" for i in small} if r.get("primary", True) else {}
         if small and merge_other and len(dims) == 1:
-            combined = sum(src[i][size_key] for i in small)
-            if combined >= n and len(small) < len(src):
-                kept = [x for i, x in enumerate(src) if i not in small]
-                other = total_row([src[i] for i in small])
+            # merge the smallest categories (smallest first) until the 'Other (combined)' line reaches N;
+            # at least one category must stay outside 'Other' (never merge everything)
+            order = sorted(range(len(src)), key=lambda i: (src[i][size_key], i))
+            merged: list[int] = []
+            for i in order:
+                if merged and sum(src[j][size_key] for j in merged) >= n:
+                    break
+                merged.append(i)
+            combined = sum(src[i][size_key] for i in merged)
+            if combined >= n and len(merged) < len(src):
+                kept = [x for i, x in enumerate(src) if i not in merged]
+                other = total_row([src[i] for i in merged])
                 other[dims[0]] = OTHER_KEY
                 other["_merged"] = True
                 src = kept + [other]
@@ -259,9 +268,13 @@ def suppress_table(
         for i in range(len(src)):
             cell_hidden.setdefault(i, {})
         visible_rows = [i for i in range(len(src)) if i not in row_hidden]
+        complement_of = {nk: dk for nk, dk in rate_keys.values() if nk in count_keys}
         for ck in count_keys:
             vals = [src[i].get(ck) or 0 for i in range(len(src))]
             prim = {i for i in visible_rows if is_small(vals[i], n, zero_shown=zero_shown)}
+            if ck in complement_of:  # a numerator next to its denominator also reveals the complement
+                dk = complement_of[ck]
+                prim |= {i for i in visible_rows if is_small((src[i].get(dk) or 0) - vals[i], n, zero_shown=zero_shown)}
             col_total = sum(vals)
             comp = _hide_until_safe(vals, prim | set(row_hidden), n, publish_total=col_total >= n) if (prim and r.get("complementary", True)) else set()
             for i in prim:
@@ -313,6 +326,9 @@ def suppress_table(
             for ck in count_keys:
                 if is_small(t.get(ck), n, zero_shown=zero_shown):
                     hidden[ck] = "suppressed_fewer_than_N"
+            for nk, dk in rate_keys.values():
+                if nk in count_keys and is_small((t.get(dk) or 0) - (t.get(nk) or 0), n, zero_shown=zero_shown):
+                    hidden[nk] = "suppressed_fewer_than_N"
             if r.get("dominance", True):
                 for ak in amount_keys:
                     amt = abs(t.get(ak) or 0)

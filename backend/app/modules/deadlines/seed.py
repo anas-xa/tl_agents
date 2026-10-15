@@ -11,7 +11,15 @@ from sqlalchemy.orm import Session
 from app.core.time import dubai_today
 from app.demo import CO_ALNOOR, CO_GULFTECH, CO_SAFWA
 from app.modules.config.service import ensure_config, ensure_rule
-from app.modules.deadlines.models import AuthorityDate, CalendarEntry, CalendarVersion, DeadlineRule, FiledEvidence, Obligation, RuleChange
+from app.modules.deadlines.models import (
+    AuthorityDate,
+    CalendarEntry,
+    CalendarVersion,
+    DeadlineRule,
+    FiledEvidence,
+    Obligation,
+    RuleChange,
+)
 from app.modules.deadlines.service import DEFAULT_AUTHORITY_CALENDAR, DEFAULT_FUNCTION_MAP
 
 ORDER = 40

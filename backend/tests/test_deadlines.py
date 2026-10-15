@@ -191,7 +191,9 @@ def test_batch_priority_checkpoint_resume_and_failure(db):
     cp = db.query(RecalcCheckpoint).filter_by(batch_id=first["batch_id"], company_id=first["done"][0]).one()
     assert cp.attempts == 1
     failed_rows = dl.obligations_for(db, CO_BLUEDUNE)
-    assert all(r["date_status"] == "not_confirmed" and r["last_confirmed_date"] for r in failed_rows if r["recalc_state"] == "recalculation_failed")
+    failed_only = [r for r in failed_rows if r["recalc_state"] == "recalculation_failed"]
+    assert failed_only and all(r["date_status"] == "not_confirmed" and r["days_left"] is None for r in failed_only)
+    assert any(r["last_confirmed_date"] for r in failed_only)  # last confirmed date kept, never shown as current
     from app.core.time import utcnow
 
     assert dl.escalate_failed_recalculations(db, now=utcnow() + timedelta(hours=25)) == 1

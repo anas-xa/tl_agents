@@ -19,7 +19,14 @@ from sqlalchemy.orm import Session
 from app.core.time import utcnow
 from app.demo import CO_ALNOOR, CO_BLUEDUNE, CO_SAFWA, PERSONA_UUIDS
 from app.modules.approvals import service as svc
-from app.modules.approvals.models import Approval, ApprovalRequest, ApprovalStatusEvent, AuthorityHolder, GateDecision, ManualFilingRecord
+from app.modules.approvals.models import (
+    Approval,
+    ApprovalRequest,
+    ApprovalStatusEvent,
+    AuthorityHolder,
+    GateDecision,
+    ManualFilingRecord,
+)
 from app.modules.approvals.monitoring import DEFAULT_ROUTING
 from app.modules.approvals.strings import DECLARATION_WORDING, DECLARATION_WORDING_VERSION
 from app.modules.config.service import ensure_config, ensure_rule
@@ -120,7 +127,9 @@ def seed_demo(db: Session) -> None:
     if q2 is not None and not q2.superseded and not q2.locked:
         svc._new_request(db, q2, requested_by=omar, role="delegate", is_demo=True)
     # Al Noor: historic approval + 'Filed outside platform (self-declared)' for the earlier quarter.
-    q1 = _demo_pack(db, CO_ALNOOR, "vat", "2026-Q1", q2, created_days_ago=180, review_status="filed_user_confirmed", locked=True, filing_reference="FTA2026Q1A7731")
+    # The earlier quarter's pack is an archived snapshot (no live draft row), so the drafts lists are unchanged.
+    q1_lines = copy.deepcopy(q2.lines) if q2 is not None else []
+    q1_snapshot = {"id": "pack_demo_alnoor_2026q1", "company_id": CO_ALNOOR, "tax_type": "vat", "period_id": "2026-Q1", "version": 1, "data_version": "demo-alnoor-2026q1", "rule_version": q2.rule_version if q2 is not None else None, "lines": q1_lines, "assumptions": None}
     holders = [h for h in svc.ensure_authority(db, CO_ALNOOR) if h.display_name == "Khalid Al Mansoori"]
     holder = holders[0] if holders else None
     if holder is not None and holder.identity_uuid is None:
@@ -129,15 +138,16 @@ def seed_demo(db: Session) -> None:
     decided = created + timedelta(hours=30)
     from app.modules.drafts.service import pack_hash
 
-    h1 = pack_hash(q1)
-    req1 = ApprovalRequest(company_id=CO_ALNOOR, pack_id=q1.id, return_type="vat", period_id="2026-Q1", period_start=date(2026, 1, 1), period_end=date(2026, 3, 31), due_date=date(2026, 4, 28), due_date_source="computed", amounts=svc.pack_amounts(q1), rule_version=q1.rule_version, human_review_status="under_review", draft_content_hash=h1, pack_version=1, authority_rule_type="any_one", quorum_n=1, entitled_approvers=[{"name": "Khalid Al Mansoori", "capacity": "owner", "kind": "authority_holder"}], status="decided", status_reason="APPROVED", requested_by_name="Omar Haddad", requested_by_role="delegate", created_at=created, link_expires_at=created + timedelta(days=3), decided_at=decided, is_demo=True)
+    h1 = pack_hash(q1_snapshot)
+    q1_id = q1_snapshot["id"]
+    req1 = ApprovalRequest(company_id=CO_ALNOOR, pack_id=q1_id, return_type="vat", period_id="2026-Q1", period_start=date(2026, 1, 1), period_end=date(2026, 3, 31), due_date=date(2026, 4, 28), due_date_source="computed", amounts=[{"key": ln["key"], "term": ln.get("term"), "value_fils": ln.get("value_fils")} for ln in q1_lines if ln.get("value_fils") is not None], rule_version=q1_snapshot["rule_version"], human_review_status="under_review", draft_content_hash=h1, pack_version=1, authority_rule_type="any_one", quorum_n=1, entitled_approvers=[{"name": "Khalid Al Mansoori", "capacity": "owner", "kind": "authority_holder"}], status="decided", status_reason="APPROVED", requested_by_name="Omar Haddad", requested_by_role="delegate", created_at=created, link_expires_at=created + timedelta(days=3), decided_at=decided, is_demo=True)
     db.add(req1)
     db.flush()
-    a1 = Approval(id="APV-DEMO-ALNOOR-Q1", request_id=req1.id, company_id=CO_ALNOOR, pack_id=q1.id, decision="approve", approver_uuid=PERSONA_UUIDS["khalid"], approver_name="Khalid Al Mansoori", assurance_level="SOP3", capacity="owner", display_role="Owner", authority_evidence_ref=holder.id if holder else None, action_approved="release_for_manual_filing", data_version_hash=h1, pack_version=1, rule_version_ids=svc.rule_version_ids(q1), ai_generated_label=q1.ai_label_en, human_review_status="under_review", declaration_wording_version_id=DECLARATION_WORDING_VERSION, declaration_wording=DECLARATION_WORDING, channel="web/UAE PASS click-to-approve", device_family="desktop", decided_at=decided, valid_until=decided + timedelta(days=7), validity_days=7, status="active", is_demo=True)
+    a1 = Approval(id="APV-DEMO-ALNOOR-Q1", request_id=req1.id, company_id=CO_ALNOOR, pack_id=q1_id, decision="approve", approver_uuid=PERSONA_UUIDS["khalid"], approver_name="Khalid Al Mansoori", assurance_level="SOP3", capacity="owner", display_role="Owner", authority_evidence_ref=holder.id if holder else None, action_approved="release_for_manual_filing", data_version_hash=h1, pack_version=1, rule_version_ids=svc.rule_version_ids(q2) if q2 is not None else None, ai_generated_label="AI-generated draft: not a filed return", human_review_status="under_review", declaration_wording_version_id=DECLARATION_WORDING_VERSION, declaration_wording=DECLARATION_WORDING, channel="web/UAE PASS click-to-approve", device_family="desktop", decided_at=decided, valid_until=decided + timedelta(days=7), validity_days=7, status="active", is_demo=True)
     db.add(a1)
     for path, at in (("manual_release", decided + timedelta(days=1)), ("manual_filing_record", decided + timedelta(days=3))):
-        db.add(GateDecision(company_id=CO_ALNOOR, pack_id=q1.id, data_version_hash=h1, approval_id=a1.id, path=path, caller_type="user", outcome="pass", tax_type="vat", at=at))
-    db.add(ManualFilingRecord(id="MFR-DEMO-ALNOOR-Q1", company_id=CO_ALNOOR, pack_id=q1.id, request_id=req1.id, approval_id=a1.id, data_version_hash=h1, tax_type="vat", state="filed_outside_self_declared", filed_date=(decided + timedelta(days=3)).date(), authority_reference="FTA2026Q1A7731", self_filed_confirmed=True, recorded_by_uuid=PERSONA_UUIDS["khalid"], recorded_by_name="Khalid Al Mansoori", recorded_by_role="owner", recorded_at=decided + timedelta(days=3, hours=2), is_demo=True))
+        db.add(GateDecision(company_id=CO_ALNOOR, pack_id=q1_id, data_version_hash=h1, approval_id=a1.id, path=path, caller_type="user", outcome="pass", tax_type="vat", at=at))
+    db.add(ManualFilingRecord(id="MFR-DEMO-ALNOOR-Q1", company_id=CO_ALNOOR, pack_id=q1_id, request_id=req1.id, approval_id=a1.id, data_version_hash=h1, tax_type="vat", state="filed_outside_self_declared", filed_date=(decided + timedelta(days=3)).date(), authority_reference="FTA2026Q1A7731", self_filed_confirmed=True, recorded_by_uuid=PERSONA_UUIDS["khalid"], recorded_by_name="Khalid Al Mansoori", recorded_by_role="owner", recorded_at=decided + timedelta(days=3, hours=2), is_demo=True))
     # Blue Dune: request link expired.
     ct_template = drafts.latest_pack(db, CO_ALNOOR, "ct", "FY2025")
     bd = _demo_pack(db, CO_BLUEDUNE, "ct", "FY2025", ct_template, created_days_ago=6)

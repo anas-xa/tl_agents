@@ -86,6 +86,7 @@ def list_approvals(company_id: str, principal: Principal = Depends(member("retur
     reqs = list(db.scalars(select(ApprovalRequest).where(ApprovalRequest.company_id == company_id).order_by(ApprovalRequest.created_at.desc())))
     for r in reqs:
         svc.refresh_request(db, r)
+    reqs = list(db.scalars(select(ApprovalRequest).where(ApprovalRequest.company_id == company_id).order_by(ApprovalRequest.created_at.desc())))  # incl. requests raised for new versions
     role = svc.role_on(principal, company_id)
     packs = []
     if role in ("owner", "delegate"):
@@ -114,7 +115,7 @@ def get_request(company_id: str, request_id: str, principal: Principal = Depends
     req = svc.get_request(db, company_id, request_id)
     svc.refresh_request(db, req)
     record_event(db, event_type="APPROVAL_REQUEST_VIEWED", category="data_access", actor_key=principal.actor_key, actor_role=svc.role_on(principal, company_id), company_id=company_id, subject_type="approval_request", subject_id=req.id)
-    out = svc.request_dict(db, req, principal=principal, detail=True) | {"role": svc.role_on(principal, company_id), "flow_enabled": svc.flow_enabled(db), "phase_b_on": svc.phase_b_on(db, company_id), "fixtures": svc.demo_fixtures(principal.language), "strings": _strings(principal.language)}
+    out = svc.request_dict(db, req, principal=principal, detail=True) | {"role": svc.role_on(principal, company_id), "flow_enabled": svc.flow_enabled(db), "phase_b_on": svc.phase_b_on(db, company_id), "validity_days": svc.validity_days(db), "fixtures": svc.demo_fixtures(principal.language), "strings": _strings(principal.language)}
     db.commit()
     return out
 

@@ -15,7 +15,7 @@ from sqlalchemy.orm import Session
 
 from app.core.errors import Conflict, Forbidden, NotFound, SwitchedOff, ValidationFailed
 from app.core.time import dubai_today, utcnow
-from app.modules.access.service import Principal, authorize, require_step_up
+from app.modules.access.service import authorize, require_step_up
 from app.modules.approvals.models import (
     Approval,
     ApprovalRequest,
@@ -790,6 +790,7 @@ def request_dict(db: Session, req: ApprovalRequest, *, principal: Any | None = N
         "status": req.status, "status_reason": req.status_reason, "awaiting_owner": req.awaiting_owner, "requested_by": {"name": req.requested_by_name, "role": req.requested_by_role},
         "created_at": _iso(req.created_at), "link_expires_at": _iso(req.link_expires_at), "decided_at": _iso(req.decided_at), "superseded_by": req.superseded_by,
         "escalation_case_id": req.escalation_case_id, "is_demo": req.is_demo,
+        "entitled_owner": next((e["name"] for e in (req.entitled_approvers or []) if e.get("kind") == "authority_holder"), None),
         "approval_valid": valid, "approved_by": approval_dict(cur) if cur else None,
         "joint_collected": len({a.approver_uuid for a in approvals if a.status == "pending_joint"}),
         "history": [approval_dict(a) for a in approvals],

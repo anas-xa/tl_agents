@@ -39,7 +39,7 @@ KPIS: list[dict] = [
         "kpi_id": "K3", "name_en": "Subscription collection rate", "name_ar": "معدل تحصيل الاشتراك",
         "definition_en": "Payments collected ÷ amounts billed, for the selected period.",
         "definition_ar": "المدفوعات المحصّلة ÷ المبالغ المفوترة، للفترة المحددة.",
-        "formula_text": "Final: (collected on billing-line or invoice-single-line basis - partial/goodwill refunds) / (billed - cancelling refunds) x 100. Provisional: same including platform-derived allocations (alloc-v1), with platform-derived share = platform-derived collected / total collected x 100.",
+        "formula_text": "Final: (collected on billing-line or invoice-single-line basis - refunds) / (billed - refunds that cancel the charge) x 100; partial and goodwill refunds reduce collected only. Provisional: same including platform-derived allocations (alloc-v1), with platform-derived share = platform-derived collected / total collected x 100.",
         "unit": "%", "target_en": None, "refresh_period": "daily", "source_list": ["Payment channel", "DET billing", "Allocation table (alloc-v1)"], "rule_version_id": "alloc-v1", "is_fairness_indicator": False,
         "dimensions": BASE_DIMS + ["payment_method"],
     },
@@ -89,7 +89,7 @@ KPIS: list[dict] = [
         "definition_ar": "أعداد المخرجات الحالية التي تحتاج إلى توقيع مدقق مرخّص حسب الحالة (ملفات عمل التدقيق المسودة: مسودة، قيد المراجعة، موقّع، مرفوض) وعدد منفصل لتقارير مدقق الحسابات الصادرة. تُعرض الأنواع التي لا تحتاج إلى توقيع في سطر منفصل.",
         "formula_text": "Current deliverables with signature_required = yes (sig-v1; unknown type = yes) in each status / total current deliverables with signature_required = yes x 100; unsigned-release count must be 0",
         "unit": "count", "target_en": "100% of deliverables needing a signature carry a licensed signer before release; unsigned-release count = 0", "refresh_period": "daily", "source_list": ["Audit file", "Deliverable register", "sig-v1 rule table"], "rule_version_id": "sig-v1", "is_fairness_indicator": False,
-        "dimensions": ["month", "cohort", "wave", "licence_category"],
+        "dimensions": ["cohort", "wave", "licence_category"],
     },
     {
         "kpi_id": "K20", "name_en": "Audit-required share", "name_ar": "نسبة الرخص التي يُرجّح أن تتطلب تدقيقاً",

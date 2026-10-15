@@ -226,18 +226,14 @@ def _declared_revenue(db: Session, company_id: str, prof: Any, ps: date, pe: dat
 # --- evaluation -------------------------------------------------------------------------------------------
 
 
-def _side(net: int, thr: int, lower: int, upper: int) -> str:
-    if lower <= net <= upper:
-        return "band"
-    return "above" if net > thr else "below"
-
-
 def compute(db: Session, company_id: str, inputs: dict, crit: AuditCriteriaVersion, *, now: datetime | None = None) -> dict:
     """Pure evaluation of the resolved inputs under one criteria version."""
     now = now or utcnow()
     thr = int(crit.triggers.get("revenue_threshold_fils", 50_000_000 * AED))
-    band = int(get_config(db, "auditagent.criteria.near_threshold_band_pct", crit.near_threshold_band_pct) or crit.near_threshold_band_pct)
-    tol = float(get_config(db, "auditagent.revenue.source_tolerance_pct", crit.revenue_source_tolerance_pct) or crit.revenue_source_tolerance_pct)
+    band_cfg = get_config(db, "auditagent.criteria.near_threshold_band_pct", None)
+    band = int(crit.near_threshold_band_pct if band_cfg is None else band_cfg)
+    tol_cfg = get_config(db, "auditagent.revenue.source_tolerance_pct", None)
+    tol = float(crit.revenue_source_tolerance_pct if tol_cfg is None else tol_cfg)
     lower, upper = thr * (100 - band) // 100, thr * (100 + band) // 100
     cd: list[str] = []
     checklist: list[str] = []
@@ -287,7 +283,7 @@ def compute(db: Session, company_id: str, inputs: dict, crit: AuditCriteriaVersi
                 o = int(other["net_fils"])
                 gap = abs(net - o) / max(net, o, 1) * 100
                 if gap > tol:
-                    if _side(net, thr, lower, upper) != _side(o, thr, lower, upper):
+                    if (net > thr) != (o > thr):  # lower-ranked never silently overrides: disagreement across the threshold
                         add("source_conflict")
                     else:
                         caveats.append("source_discrepancy_same_result")

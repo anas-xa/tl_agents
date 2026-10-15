@@ -772,6 +772,8 @@ def readiness(db: Session, o: Obligation) -> dict:
                 pass
         if r is None and o.readiness_fixture:
             r = detail = o.readiness_fixture
+        if r == "draft_ready" and o.missing_items and not o.readiness_fixture:
+            r = detail = "data_missing"  # mandatory inputs still missing: the draft cannot be relied on yet
         if r is None:
             r = detail = "data_missing" if o.missing_items else "not_started"
     return {"readiness": r, "detail": detail, "label": bi(f"readiness.{detail}") if f"readiness.{detail}" in _labels() else bi(f"readiness.{r}"), "draft_pack_id": pack_id, "draft_status": pack_status}

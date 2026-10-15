@@ -150,7 +150,7 @@ def source_gate(db: Session, company_id: str, source: str, *, actor_key: str | N
 
 
 def _norm_inv(v: str | None) -> str:
-    return (v or "").strip().casefold().lstrip("0")
+    return re.sub(r"(?<!\d)0+(?=\d)", "", re.sub(r"\s+", "", (v or "").strip().casefold()))
 
 
 def _norm_cp(v: str | None) -> str:
