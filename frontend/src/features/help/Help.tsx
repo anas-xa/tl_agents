@@ -2,10 +2,12 @@ import { useCallback, useEffect, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import { Link } from 'react-router-dom'
 import { useAuth } from '../../app/auth'
-import { Slot } from '../../components/Slot'
-import { AiLabel, Button, Chip, Empty, Field, Ident, Message, Panel, Skeleton, Table } from '../../components/ui'
+import { Icon } from '../../components/Icon'
+import { Slot, useSlotEntries } from '../../components/Slot'
+import { AiLabel, Button, Chip, Empty, Field, Ident, Message, PageHeader, Panel, Skeleton, Table } from '../../components/ui'
 import { ApiError, get, post } from '../../lib/api'
 import { formatDate, formatDateTime } from '../../lib/format'
+import './help.css'
 
 type Bi = { en: string; ar: string }
 interface CaseView {
@@ -49,13 +51,14 @@ export default function Help() {
   useEffect(load, [load])
   const isOwner = !!company && (company.roles.includes('owner') || company.roles.includes('remote_owner'))
   const current = list?.cases.find((c) => c.case_id === selected) ?? null
+  const sections = useSlotEntries('help.sections')
 
   return (
     <div className="help-page">
-      <section role="region" aria-label={t('information_not_advice')} className="info-label" tabIndex={-1}>
+      <section role="region" aria-label={t('information_not_advice')} className="info-label help-label" tabIndex={-1}>
         <Chip tone="info" icon="i">{t('information_not_advice')}</Chip>
       </section>
-      <h1>{t('title')}</h1>
+      <PageHeader title={t('title')} subtitle={t('subtitle')} />
       <QuestionBox companyId={companyId} onCase={load} />
       {err?.code === 'NOT_YOUR_COMPANY' || err?.code === 'NO_PERMISSION' ? (
         <Message kind="error">{t('states.noAccess')}</Message>
@@ -68,32 +71,44 @@ export default function Help() {
         <>
           <Panel title={t('list.title')} id="cases">
             {!list && !err ? (<><p aria-live="polite">{t('states.loading')}</p><Skeleton rows={3} /></>) : list && list.cases.length === 0 ? (
-              <Empty title={t('states.empty')} />
+              <Empty icon="inbox" title={t('states.empty')} />
             ) : list ? (
-              <Table headers={[t('list.case'), t('list.status'), t('handled_by'), t('list.owner_role'), t('list.date')]}>
+              <ul className="help-cases">
                 {list.cases.map((c) => (
-                  <tr key={c.case_id}>
-                    <td>
-                      <button type="button" className="btn btn-link" onClick={() => setSelected(c.case_id)}>
-                        {c.title ?? t(`form.modules.${c.module}`)} <Ident>{c.case_id.slice(0, 13)}</Ident>
-                      </button>
-                      {c.linked_case_id && <Chip tone="neutral" icon="⇄">{t('list.linked')}</Chip>} {c.is_demo && <Chip tone="draft" icon="▭">{t('list.demo')}</Chip>}
-                    </td>
-                    <td><StatusChip status={c.status} />{c.waiting_for_you && <> <Chip tone="attention" icon="◔">{t('status.waiting_for_you')}</Chip></>}</td>
-                    <td><Chip tone={c.handler_type === 'licensed_human' ? 'ok' : 'draft'} icon={c.handler_type === 'licensed_human' ? '☺' : '✎'}>{t(`handler.${c.handler_type}`)}</Chip></td>
-                    <td>{t(`queue.${c.case_owner_role}`)}</td>
-                    <td>{formatDate(c.opened_at, lang)}</td>
-                  </tr>
+                  <li key={c.case_id}>
+                    <span className={`help-case-icon ${c.handler_type === 'licensed_human' ? 'is-human' : ''}`} aria-hidden="true"><Icon name={c.handler_type === 'licensed_human' ? 'user' : 'sparkle'} size={16} /></span>
+                    <div className="help-case-main">
+                      <div className="help-case-title">
+                        <button type="button" className="help-case-link" onClick={() => setSelected(c.case_id)}>
+                          {c.title ?? t(`form.modules.${c.module}`)}
+                        </button>
+                        <Ident>{c.case_id.slice(0, 13)}</Ident>
+                      </div>
+                      <div className="help-case-meta">
+                        <span>{t('list.owner_role')}: {t(`queue.${c.case_owner_role}`)}</span>
+                        <span className="nowrap">{t('list.date')}: {formatDate(c.opened_at, lang)}</span>
+                      </div>
+                    </div>
+                    <div className="help-case-chips">
+                      <StatusChip status={c.status} />
+                      {c.waiting_for_you && <Chip tone="attention" icon="◔">{t('status.waiting_for_you')}</Chip>}
+                      <Chip tone={c.handler_type === 'licensed_human' ? 'ok' : 'draft'} icon={c.handler_type === 'licensed_human' ? '☺' : '✎'}><span className="visually-hidden">{t('handled_by')}: </span>{t(`handler.${c.handler_type}`)}</Chip>
+                      {c.linked_case_id && <Chip tone="neutral" icon="⇄">{t('list.linked')}</Chip>}
+                      {c.is_demo && <Chip tone="draft" icon="▭">{t('list.demo')}</Chip>}
+                    </div>
+                  </li>
                 ))}
-              </Table>
+              </ul>
             ) : null}
           </Panel>
           <EscalationForm companyId={companyId} onCreated={load} />
         </>
       )}
-      <Panel title={t('sections')} id="help-sections">
-        <Slot name="help.sections" />
-      </Panel>
+      {sections.length > 0 && (
+        <Panel title={t('sections')} id="help-sections">
+          <Slot name="help.sections" />
+        </Panel>
+      )}
     </div>
   )
 }
@@ -128,14 +143,14 @@ function EscalationForm({ companyId, onCreated }: { companyId: string | null; on
   return (
     <Panel title={t('form.title')} id="ask-human">
       <p>{t('form.intro')}</p>
-      <form onSubmit={submit}>
+      <form onSubmit={submit} className="help-form">
         <Field label={t('form.module')} id="esc-module">
           <select id="esc-module" value={module} onChange={(e) => setModule(e.target.value)}>
             {['tax', 'audit', 'compliance', 'legal'].map((m) => <option key={m} value={m}>{t(`form.modules.${m}`)}</option>)}
           </select>
         </Field>
         {module === 'legal' ? (
-          <Message kind="info">{t('form.legal_note')} {t('no_route')}</Message>
+          <div className="help-wide"><Message kind="info">{t('form.legal_note')} {t('no_route')}</Message></div>
         ) : (
           <>
             <Field label={t('form.linked')} id="esc-linked"><input id="esc-linked" value={linked} onChange={(e) => setLinked(e.target.value)} dir="ltr" /></Field>
@@ -149,13 +164,19 @@ function EscalationForm({ companyId, onCreated }: { companyId: string | null; on
             <Field label={t('form.your_title')} id="esc-title"><input id="esc-title" maxLength={255} value={title} onChange={(e) => setTitle(e.target.value)} /></Field>
           </>
         )}
-        <div className="grid">
-          <div><h3>{t('form.shared_title')}</h3><ul>{shared.map((s) => <li key={s}>{s}</li>)}</ul></div>
-          <div><h3>{t('form.not_shared_title')}</h3><ul>{notShared.map((s) => <li key={s}>{s}</li>)}</ul></div>
+        <div className="help-share help-wide">
+          <div>
+            <h3>{t('form.shared_title')}</h3>
+            <ul className="help-checks">{shared.map((s) => <li key={s}><span className="help-check is-yes" aria-hidden="true"><Icon name="check" size={12} /></span>{s}</li>)}</ul>
+          </div>
+          <div>
+            <h3>{t('form.not_shared_title')}</h3>
+            <ul className="help-checks">{notShared.map((s) => <li key={s}><span className="help-check is-no" aria-hidden="true"><Icon name="lock" size={12} /></span>{s}</li>)}</ul>
+          </div>
         </div>
-        <p className="hint">{t('form.no_timing')}</p>
-        {msg && <Message kind="info">{msg}</Message>}
-        <div className="actions"><Button type="submit" disabled={busy}>{busy ? t('form.sending') : t('form.submit')}</Button></div>
+        <p className="hint help-wide">{t('form.no_timing')}</p>
+        {msg && <div className="help-wide"><Message kind="info">{msg}</Message></div>}
+        <div className="help-wide"><Button type="submit" disabled={busy}>{busy ? t('form.sending') : t('form.submit')}</Button></div>
       </form>
     </Panel>
   )
@@ -269,14 +290,15 @@ function CaseDetail({ c, canReject, isOwner, companyId, onBack, onChange }: { c:
 function CitationBlock({ c, lang }: { c: Citation; lang: string }) {
   const { t } = useTranslation('help')
   return (
-    <div className="citation">
-      <dl className="kv">
+    <div className="citation help-citation">
+      <div className="help-citation-head"><Icon name="scale" size={16} /><span><bdi>{lang === 'ar' ? c.instrument_ar : c.instrument}</bdi> · <Ident>{c.article}</Ident></span></div>
+      <dl className="kv help-citation-kv">
         <dt>{t('qa.instrument')}</dt><dd><bdi>{lang === 'ar' ? c.instrument_ar : c.instrument}</bdi></dd>
         <dt>{t('qa.article')}</dt><dd><Ident>{c.article}</Ident></dd>
         <dt>{t('qa.version')}</dt><dd><Ident>{c.corpus_version}</Ident></dd>
         <dt>{t('qa.effective')}</dt><dd>{formatDate(c.effective_from, lang)}</dd>
       </dl>
-      <blockquote lang="ar" dir="rtl">{c.quoted_text_ar}</blockquote>
+      <blockquote lang="ar" dir="rtl" className="help-quote">{c.quoted_text_ar}</blockquote>
       {lang !== 'ar' && <p className="hint" lang="en" dir="ltr">{t('qa.unofficial')} {c.text_en_unofficial}</p>}
     </div>
   )
@@ -322,35 +344,41 @@ function QuestionBox({ companyId, onCase }: { companyId: string | null; onCase: 
     onCase()
   }
   return (
-    <Panel title={t('qa.title')} id="qa">
+    <section className="help-ask" id="qa" aria-labelledby="qa-title">
+      <h2 id="qa-title" className="help-ask-title"><span className="help-ask-icon" aria-hidden="true"><Icon name="sparkle" size={18} /></span>{t('qa.title')}</h2>
+      <p className="help-ask-intro">{t('qa.empty')}</p>
       <form onSubmit={ask}>
         <Field label={t('qa.placeholder')} id="qa-input">
           <textarea id="qa-input" value={q} onChange={(e) => setQ(e.target.value)} rows={2} dir="auto" />
         </Field>
-        <label className="checkbox"><input type="checkbox" checked={urgent} onChange={(e) => setUrgent(e.target.checked)} /> {t('qa.urgent')}</label>
-        <div className="actions">
-          <Button type="submit" disabled={state === 'loading' || state === 'slow'}>{t('qa.ask')}</Button>
-          {(state === 'loading' || state === 'slow') && <Button type="button" variant="secondary" onClick={() => { abort.current?.abort(); setState('empty') }}>{t('qa.cancel')}</Button>}
+        <div className="help-ask-row">
+          <label className="checkbox"><input type="checkbox" checked={urgent} onChange={(e) => setUrgent(e.target.checked)} /> {t('qa.urgent')}</label>
+          <div className="help-ask-actions">
+            {(state === 'loading' || state === 'slow') && <Button type="button" variant="secondary" onClick={() => { abort.current?.abort(); setState('empty') }}>{t('qa.cancel')}</Button>}
+            <Button type="submit" disabled={state === 'loading' || state === 'slow'}>{t('qa.ask')}</Button>
+          </div>
         </div>
       </form>
       <div className="result" aria-live="polite">
         {state === 'empty' && (
-          <Empty icon="?" title={t('qa.empty')} body={<span>{examples.map((ex) => <button key={ex} type="button" className="btn btn-link" dir="auto" onClick={() => setQ(ex)}>{ex}</button>)}</span>} />
+          <div className="help-examples">
+            <span className="help-examples-label">{t('try_examples')}</span>
+            {examples.map((ex) => <button key={ex} type="button" className="help-example" dir="auto" onClick={() => setQ(ex)}>{ex}</button>)}
+          </div>
         )}
         {(state === 'loading' || state === 'slow') && (<><p ref={summary} tabIndex={-1}>{t('qa.loading')} {state === 'slow' && t('qa.slow')}</p><Skeleton rows={2} /></>)}
         {state === 'error' && (<Message kind="error"><p ref={summary} tabIndex={-1}>{t('qa.error')}</p><div className="actions"><Button onClick={() => ask()}>{t('qa.try_again')}</Button><a className="btn btn-secondary" href="#ask-human">{t('qa.send_specialist')}</a></div></Message>)}
         {state === 'done' && ans && (
-          <div className="answer-card">
+          <div className="answer-card help-answer">
             <p ref={summary} tabIndex={-1} className="summary"><strong>{ans.decision === 'answer_as_information' ? t('qa.answered') : t('qa.not_answered')}</strong></p>
-            <p><Chip tone="draft" icon="✎">{t('qa.chip')}</Chip></p>
-            <p><Chip tone="info" icon="i">{ans.decision === 'legal_neutral' ? t('qa.legal_label') : t('qa.label')}</Chip></p>
+            <p className="help-answer-chips"><Chip tone="draft" icon="✎">{t('qa.chip')}</Chip><Chip tone="info" icon="i">{ans.decision === 'legal_neutral' ? t('qa.legal_label') : t('qa.label')}</Chip></p>
             {ans.decision === 'answer_as_information' && (
               <>
                 <p dir="auto" lang={lang}>{ans.body[lang]}</p>
                 {lang !== 'ar' && <p className="hint">{t('qa.original')}</p>}
                 <p className="hint">{t('qa.disclaimer')} {t('qa.value_status')}</p>
-                <h3>{t('qa.sources')}</h3>
-                {ans.citations.map((c) => <CitationBlock key={c.passage_id} c={c} lang={lang} />)}
+                <h3 className="help-sources-title">{t('qa.sources')}</h3>
+                <div className="help-citations">{ans.citations.map((c) => <CitationBlock key={c.passage_id} c={c} lang={lang} />)}</div>
                 <p>{t('qa.helpful')} <a className="btn btn-link" href="#ask-human">{t('qa.ask_human')}</a></p>
               </>
             )}
@@ -384,6 +412,6 @@ function QuestionBox({ companyId, onCase }: { companyId: string | null; onCase: 
           </div>
         )}
       </div>
-    </Panel>
+    </section>
   )
 }

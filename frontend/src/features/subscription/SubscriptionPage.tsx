@@ -2,7 +2,8 @@ import { useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import { Link } from 'react-router-dom'
 import { useAuth } from '../../app/auth'
-import { Button, Chip, Dialog, Empty, Field, Ident, Message, Panel, Skeleton, Table } from '../../components/ui'
+import { Icon } from '../../components/Icon'
+import { Button, Chip, Dialog, Empty, Field, Ident, Message, PageHeader, Panel, Skeleton } from '../../components/ui'
 import { ApiError, post } from '../../lib/api'
 import { formatAED, formatDate } from '../../lib/format'
 import { bl, newRequestId, useFetch, type CaseRow, type LicenceRow, type Sub, type SubscriptionView } from './lib'
@@ -45,36 +46,47 @@ export default function SubscriptionPage() {
   if (!data) return null
   const canComplain = can('complaints.open', companyId)
   return (
-    <div className="page">
-      <h1>{t('screen.title')}</h1>
+    <div className="sub-page">
+      <PageHeader
+        title={t('screen.title')}
+        subtitle={t('screen.subtitle')}
+        actions={
+          <>
+            <Button variant="secondary" onClick={() => setTermsOpen(true)}><Icon name="file" size={18} />{t('screen.see_terms')}</Button>
+            <Link className="btn btn-secondary" to="/welcome">{t('screen.open_welcome')}</Link>
+          </>
+        }
+      />
       {!data.can_change && <Message kind="info">{t('screen.only_owner')}</Message>}
       {notice && <Message kind="success">{notice}</Message>}
-      <div className="actions">
-        <Button variant="secondary" onClick={() => setTermsOpen(true)}>{t('screen.see_terms')}</Button>
-        <Link className="btn btn-secondary" to="/welcome">{t('screen.open_welcome')}</Link>
-        {canComplain && <Button variant="secondary" onClick={() => setComplaintOpen(true)}>{t('screen.complaint')}</Button>}
-      </div>
-      {data.licences.length === 0 && <Empty title={t('screen.no_licence')} />}
+      {data.licences.length === 0 && <Empty icon="card" title={t('screen.no_licence')} />}
       {data.licences.map((row) => (
         <LicenceSection key={row.licence_number} row={row} view={data} onChanged={(msg) => { setNotice(msg); reload() }} />
       ))}
-      <ParametersList parameters={data.parameters} />
-      <Panel title={t('screen.complaints')} id="sub-complaints">
-        {data.complaints.length === 0 ? (
-          <Empty title={t('screen.no_requests')} action={canComplain ? <Button variant="secondary" onClick={() => setComplaintOpen(true)}>{t('screen.complaint')}</Button> : undefined} />
-        ) : (
-          <Table headers={[t('screen.licence'), t('screen.category'), t('translation:common.status'), t('translation:common.date')]}>
-            {data.complaints.map((c) => (
-              <tr key={c.id}>
-                <td><Ident>{c.reference}</Ident></td>
-                <td>{bl(data.complaint_categories.find((x) => x.code === c.category), document.documentElement.lang) || c.category}</td>
-                <td><Chip tone="info">{c.status}</Chip></td>
-                <td>{t('screen.reply_by', { date: formatDate(c.reply_by, document.documentElement.lang) })}</td>
-              </tr>
-            ))}
-          </Table>
-        )}
-      </Panel>
+      <div className="sub-grid">
+        <ParametersList parameters={data.parameters} />
+        <section className="card sub-complaints" aria-labelledby="sub-complaints-title" id="sub-complaints">
+          <header className="sub-card-head">
+            <h3 id="sub-complaints-title">{t('screen.complaints')}</h3>
+            {canComplain && <Button variant="secondary" className="btn-sm" onClick={() => setComplaintOpen(true)}>{t('screen.complaint')}</Button>}
+          </header>
+          {data.complaints.length === 0 ? (
+            <p className="hint">{t('screen.no_requests')}</p>
+          ) : (
+            <ul className="sub-rows">
+              {data.complaints.map((c) => (
+                <li key={c.id}>
+                  <div className="sub-row-main">
+                    <span className="sub-row-title">{bl(data.complaint_categories.find((x) => x.code === c.category), document.documentElement.lang) || c.category}</span>
+                    <span className="sub-row-meta"><Ident>{c.reference}</Ident> · <span className="nowrap">{t('screen.reply_by', { date: formatDate(c.reply_by, document.documentElement.lang) })}</span></span>
+                  </div>
+                  <Chip tone={c.status === 'resolved' || c.status === 'refunded' || c.status === 'replied' ? 'ok' : c.status === 'rejected' ? 'neutral' : 'info'}>{t(`complaint_status.${c.status}`, { defaultValue: c.status })}</Chip>
+                </li>
+              ))}
+            </ul>
+          )}
+        </section>
+      </div>
       <p className="hint">{t('screen.questions')}<Proposed /></p>
       <TermsSheet companyId={companyId} open={termsOpen} onClose={() => setTermsOpen(false)} />
       {complaintOpen && <ComplaintDialog view={data} onClose={() => setComplaintOpen(false)} onDone={(msg) => { setComplaintOpen(false); setNotice(msg); reload() }} />}
@@ -98,8 +110,7 @@ function LicenceSection({ row, view, onChanged }: { row: LicenceRow; view: Subsc
     }
   }
   return (
-    <Panel title={<>{t('screen.licence')} <Ident>{row.licence_number}</Ident></>} id={`lic-${row.licence_number}`}>
-      <p>{t('screen.pilot_status')}: <Chip tone={row.pilot?.pilot_status === 'active' ? 'ok' : 'neutral'}>{t(pilotKey)}</Chip></p>
+    <Panel className="sub-licence" title={<>{t('screen.licence')} <Ident>{row.licence_number}</Ident></>} id={`lic-${row.licence_number}`} actions={<span className="sub-pilot">{t('screen.pilot_status')}: <Chip tone={row.pilot?.pilot_status === 'active' ? 'ok' : 'neutral'}>{t(pilotKey)}</Chip></span>}>
       {row.empty_state === 'not_in_pilot' && (
         <Message kind="info">
           {t('screen.empty_not_in_pilot')}
@@ -137,51 +148,62 @@ function SubscriptionCard({ sub, view, onChanged }: { sub: Sub; view: Subscripti
     onChanged(t('screen.chip_cancelled'))
   }
   return (
-    <div>
-      <p>
-        <StatusBadge badge={sub.badge} />{' '}
-        <Chip tone="neutral" icon={sub.enrolment_basis === 'opted_in' ? '✓' : 'i'}>{sub.enrolment_basis === 'opted_in' ? t('screen.you_chose') : t('screen.default_on_tag')}</Chip>
-        {sub.is_demo && <> <Chip tone="draft" icon="✎">{t('demo')}</Chip></>}
-      </p>
-      <StatusMessage sub={sub} />
-      <p>{t('screen.term', { start: formatDate(sub.start_date, lang), end: formatDate(sub.end_date, lang) })}</p>
-      {openCase('opt_out') && <Message kind="info">{t('screen.pending_banner')}</Message>}
-      {sub.service_mode === 'read_only' && (
-        <Message kind="warning">{t('screen.read_only_mode')} {sub.grace_until && <span className="hint">{t('screen.grace_until', { date: formatDate(sub.grace_until, lang) })}</span>}</Message>
-      )}
-      <FeeCard sub={sub} />
-      {sub.billing && sub.fee && <BillingLine sub={sub} />}
-      <section aria-labelledby={`actions-${sub.id}`}>
-        <h3 id={`actions-${sub.id}`}>{t('screen.actions')}</h3>
-        {view.can_change ? (
-          <div className="actions">
-            {!stopped && !openCase('opt_out') && <Button variant="secondary" onClick={() => setDialog('opt_out')}>{t('screen.opt_out')}</Button>}
-            {sub.billing && !openCase('refund') && <Button variant="secondary" onClick={() => setDialog('refund')}>{t('screen.refund')}</Button>}
-          </div>
-        ) : (
-          <div className="actions">
-            <Button variant="secondary" disabled aria-describedby={`owner-only-${sub.id}`}>{t('screen.opt_out')}</Button>
-            <span id={`owner-only-${sub.id}`} className="hint">{t('screen.only_owner_action')}</span>
-          </div>
+    <div className="sub-licence-grid">
+      <div className="sub-col">
+        <div className="sub-status">
+          <span className="sub-status-chips">
+            <StatusBadge badge={sub.badge} />
+            <Chip tone="neutral" icon={sub.enrolment_basis === 'opted_in' ? '✓' : 'i'}>{sub.enrolment_basis === 'opted_in' ? t('screen.you_chose') : t('screen.default_on_tag')}</Chip>
+            {sub.is_demo && <Chip tone="draft" icon="✎">{t('demo')}</Chip>}
+          </span>
+          <StatusMessage sub={sub} />
+        </div>
+        {openCase('opt_out') && <Message kind="info">{t('screen.pending_banner')}</Message>}
+        {sub.service_mode === 'read_only' && (
+          <Message kind="warning">{t('screen.read_only_mode')} {sub.grace_until && <span className="hint">{t('screen.grace_until', { date: formatDate(sub.grace_until, lang) })}</span>}</Message>
         )}
-        {sub.cases.length === 0 ? <p className="hint">{t('screen.no_requests')}</p> : (
-          <Table headers={[t('screen.request_list'), t('translation:common.status'), t('translation:common.date'), '']}>
-            {sub.cases.map((c) => (
-              <tr key={c.id}>
-                <td>{c.action === 'opt_out' ? t('screen.opt_out') : t('screen.refund')} · <Ident>{c.reference_code}</Ident></td>
-                <td>
-                  <Chip tone={CASE_CHIP_TONE[c.chip] ?? 'neutral'}>{t(`screen.chip_${c.chip}`)}</Chip>
-                  {c.state === 'needs_DET_action' && <div className="hint">{t('screen.needs_det', { code: c.reference_code })}</div>}
-                  {c.action === 'refund' && c.can_cancel && <div className="hint">{t('screen.request_received')}</div>}
-                  {c.action === 'opt_out' && c.can_cancel && <div className="hint">{t('screen.window_not_set')}</div>}
-                </td>
-                <td>{formatDate(c.received_at, lang)}</td>
-                <td>{view.can_change && c.can_cancel && <Button variant="link" onClick={() => cancel(c)}>{t('screen.cancel_request')}</Button>}</td>
-              </tr>
-            ))}
-          </Table>
-        )}
-      </section>
+        <FeeCard sub={sub} />
+      </div>
+      <div className="sub-col">
+        <div className="card sub-term">
+          <span className="sub-term-icon" aria-hidden="true"><Icon name="calendar" size={18} /></span>
+          <span>{t('screen.term', { start: formatDate(sub.start_date, lang), end: formatDate(sub.end_date, lang) })}</span>
+        </div>
+        {sub.billing && sub.fee && <BillingLine sub={sub} />}
+        <section className="card sub-requests" aria-labelledby={`actions-${sub.id}`}>
+          <h3 id={`actions-${sub.id}`}>{t('screen.actions')}</h3>
+          {view.can_change ? (
+            <div className="actions">
+              {!stopped && !openCase('opt_out') && <Button variant="secondary" onClick={() => setDialog('opt_out')}>{t('screen.opt_out')}</Button>}
+              {sub.billing && !openCase('refund') && <Button variant="secondary" onClick={() => setDialog('refund')}>{t('screen.refund')}</Button>}
+            </div>
+          ) : (
+            <div className="actions">
+              <Button variant="secondary" disabled aria-describedby={`owner-only-${sub.id}`}>{t('screen.opt_out')}</Button>
+              <span id={`owner-only-${sub.id}`} className="hint">{t('screen.only_owner_action')}</span>
+            </div>
+          )}
+          {sub.cases.length === 0 ? <p className="hint sub-none">{t('screen.no_requests')}</p> : (
+            <ul className="sub-rows">
+              {sub.cases.map((c) => (
+                <li key={c.id}>
+                  <div className="sub-row-main">
+                    <span className="sub-row-title">{c.action === 'opt_out' ? t('screen.opt_out') : t('screen.refund')}</span>
+                    <span className="sub-row-meta"><Ident>{c.reference_code}</Ident> · <span className="nowrap">{formatDate(c.received_at, lang)}</span></span>
+                    {c.state === 'needs_DET_action' && <span className="hint">{t('screen.needs_det', { code: c.reference_code })}</span>}
+                    {c.action === 'refund' && c.can_cancel && <span className="hint">{t('screen.request_received')}</span>}
+                    {c.action === 'opt_out' && c.can_cancel && <span className="hint">{t('screen.window_not_set')}</span>}
+                  </div>
+                  <span className="sub-row-end">
+                    <Chip tone={CASE_CHIP_TONE[c.chip] ?? 'neutral'}>{t(`screen.chip_${c.chip}`)}</Chip>
+                    {view.can_change && c.can_cancel && <Button variant="link" onClick={() => cancel(c)}>{t('screen.cancel_request')}</Button>}
+                  </span>
+                </li>
+              ))}
+            </ul>
+          )}
+        </section>
+      </div>
       {dialog === 'opt_out' && <OptOutDialog sub={sub} view={view} onClose={() => setDialog(null)} onDone={(m) => { setDialog(null); onChanged(m) }} />}
       {dialog === 'refund' && <RefundDialog sub={sub} view={view} onClose={() => setDialog(null)} onDone={(m) => { setDialog(null); onChanged(m) }} />}
     </div>
@@ -195,12 +217,15 @@ function BillingLine({ sub }: { sub: Sub }) {
   const b = sub.billing!
   const unallocated = sub.payments.some((p) => p.status === 'received_unallocated') || b.collection_status === 'received_unallocated'
   return (
-    <section className="card">
-      <p>
-        <Chip tone={b.collection_status === 'collected' ? 'ok' : b.collection_status === 'failed' ? 'urgent' : 'info'}>{t(`screen.status_${b.collection_status}`)}</Chip>
-        {b.provisional && <> <Chip tone="draft">{t('screen.provisional')}</Chip></>}
-      </p>
-      <dl className="kv">
+    <section className="card sub-billing" aria-labelledby={`billing-${sub.id}`}>
+      <header className="sub-card-head">
+        <h3 id={`billing-${sub.id}`}>{t('screen.payment')}</h3>
+        <span className="sub-status-chips">
+          <Chip tone={b.collection_status === 'collected' ? 'ok' : b.collection_status === 'failed' ? 'urgent' : 'info'}>{t(`screen.status_${b.collection_status}`)}</Chip>
+          {b.provisional && <Chip tone="draft">{t('screen.provisional')}</Chip>}
+        </span>
+      </header>
+      <dl className="kv sub-billing-kv">
         <dt>{t('screen.payment_reference')}</dt>
         <dd>{b.payment_reference ? <Ident>{b.payment_reference}</Ident> : '–'}</dd>
         {b.collected_fils !== undefined && (b.collected_fils > 0 || b.collection_status === 'partially_collected') && (

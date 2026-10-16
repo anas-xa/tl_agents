@@ -6,6 +6,7 @@ import { ApiError, get, post } from '../../lib/api'
 import { formatDate, formatDateTime, iso } from '../../lib/format'
 import { useLang } from './parts'
 import type { Grant, GrantsResponse } from './types'
+import '../settings/settings.css'
 
 const FIXED = ['NO_OWNER_ROLE', 'NOT_OWNER_DELEGATE', 'STALE_DATA', 'REAUTH_FAILED']
 
@@ -128,7 +129,7 @@ export default function ApprovalRightsTab() {
     <Panel title={t('rights_title')} id="approval-rights">
       {data.locked && (
         <Message kind="info">
-          <Chip tone="neutral" icon="🔒">{t('rights_locked')}</Chip> {t('rights_off_owner')}
+          <Chip tone="neutral" icon="⊘">{t('rights_locked')}</Chip> {t('rights_off_owner')}
         </Message>
       )}
       {stale && (
@@ -141,18 +142,21 @@ export default function ApprovalRightsTab() {
       {data.delegates.length === 0 ? (
         <Empty title={t('no_delegates')} />
       ) : (
-        <Table headers={[t('delegate'), t('status_col'), '']}>
+        <ul className="set-people set-people-flat" aria-label={t('delegate')}>
           {data.delegates.map((d) => (
-            <tr key={d.identity_uuid}>
-              <td><bdi>{d.name ?? '—'}</bdi>{d.chip === 'no_approval_right' && <div className="hint">{t('can_prepare_view')}</div>}</td>
-              <td>{chip(d.chip, d.end_date)}</td>
-              <td />
-            </tr>
+            <li key={d.identity_uuid} className="set-person">
+              <span className="set-avatar is-delegate" aria-hidden="true">{(d.name ?? '?').trim().charAt(0).toUpperCase()}</span>
+              <div className="set-person-main">
+                <div className="set-person-name"><strong><bdi>{d.name ?? '—'}</bdi></strong></div>
+                {d.chip === 'no_approval_right' && <div className="set-person-meta">{t('can_prepare_view')}</div>}
+              </div>
+              <div className="set-person-actions">{chip(d.chip, d.end_date)}</div>
+            </li>
           ))}
-        </Table>
+        </ul>
       )}
-      <h3>{t('give_right')}</h3>
-      <form className="form" onSubmit={(e) => { e.preventDefault(); if (form.end_date <= form.start_date) setRefusal(t('dates_invalid')); else setConfirm(true) }}>
+      <h3 className="set-rights-sub">{t('give_right')}</h3>
+      <form className="form set-grant-form" onSubmit={(e) => { e.preventDefault(); if (form.end_date <= form.start_date) setRefusal(t('dates_invalid')); else setConfirm(true) }}>
         <fieldset disabled={locked} aria-describedby={locked ? 'rights-locked-reason' : undefined}>
           <Field label={t('delegate')} id="gr-delegate" required>
             <select id="gr-delegate" value={form.delegate_uuid} onChange={(e) => setForm({ ...form, delegate_uuid: e.target.value })}>
@@ -188,20 +192,20 @@ export default function ApprovalRightsTab() {
           <Field label={t('max_amount')} id="gr-max">
             <input id="gr-max" type="number" dir="ltr" value={form.max_amount} onChange={(e) => setForm({ ...form, max_amount: e.target.value })} />
           </Field>
-          <Button type="submit" disabled={!form.delegate_uuid}>{t('give_right')}</Button>
+          <div className="set-form-actions"><Button type="submit" disabled={!form.delegate_uuid}>{t('give_right')}</Button></div>
         </fieldset>
-        {locked && <p id="rights-locked-reason" className="hint">{data.locked ? t('rights_off_owner') : t('ref_STALE_DATA')}</p>}
+        {locked && <p id="rights-locked-reason" className={data.locked ? 'visually-hidden' : 'hint'}>{data.locked ? t('rights_off_owner') : t('ref_STALE_DATA')}</p>}
       </form>
       {data.grants.length > 0 && (
         <>
-          <h3>{t('history')}</h3>
+          <h3 className="set-rights-sub">{t('history')}</h3>
           <Table headers={[t('delegate'), t('status_col'), t('scope'), '']}>
             {data.grants.map((g) => (
               <tr key={g.grant_id}>
                 <td><bdi>{g.delegate_name}</bdi><div className="hint"><bdi dir="ltr">{g.grant_id}</bdi></div></td>
                 <td>{chip(g.status, g.end_date)}</td>
-                <td>{g.scope_items.map((s) => `${s.tax_type.toUpperCase()}${s.period_id ? ` ${iso(s.period_id)}` : ''}`).join(', ')} · {formatDate(g.start_date, lang)} – {formatDate(g.end_date, lang)}</td>
-                <td>{g.status === 'active' && <Button variant="danger" onClick={() => setRevoking(g)}>{t('revoke')}</Button>}</td>
+                <td>{g.scope_items.map((s) => `${s.tax_type.toUpperCase()}${s.period_id ? ` ${iso(s.period_id)}` : ''}`).join(', ')}<div className="hint nowrap">{formatDate(g.start_date, lang)} – {formatDate(g.end_date, lang)}</div></td>
+                <td>{g.status === 'active' && <Button variant="danger" className="btn-sm" onClick={() => setRevoking(g)}>{t('revoke')}</Button>}</td>
               </tr>
             ))}
           </Table>
@@ -211,13 +215,17 @@ export default function ApprovalRightsTab() {
         <p>{summary}</p>
         <p>{t('not_shared')}</p>
         <p className="hint">{t('record_permission')}</p>
-        <Button onClick={create} disabled={saving}>{saving ? t('saving') : t('continue_uaepass')}</Button>{' '}
-        <Button variant="secondary" onClick={() => setConfirm(false)}>{t('close')}</Button>
+        <div className="dialog-actions">
+          <Button variant="secondary" onClick={() => setConfirm(false)}>{t('close')}</Button>
+          <Button onClick={create} disabled={saving}>{saving ? t('saving') : t('continue_uaepass')}</Button>
+        </div>
       </Dialog>
       <Dialog open={!!revoking} title={t('revoke')} onClose={() => setRevoking(null)} labelledBy="grant-revoke-title">
-        <p>{revoking?.delegate_name}</p>
-        <Button variant="danger" onClick={revoke}>{t('revoke')}</Button>{' '}
-        <Button variant="secondary" onClick={() => setRevoking(null)}>{t('close')}</Button>
+        <p><bdi>{revoking?.delegate_name}</bdi></p>
+        <div className="dialog-actions">
+          <Button variant="secondary" onClick={() => setRevoking(null)}>{t('close')}</Button>
+          <Button variant="danger" onClick={revoke}>{t('revoke')}</Button>
+        </div>
       </Dialog>
     </Panel>
   )

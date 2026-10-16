@@ -40,8 +40,11 @@ export default function AddDelegateDialog({ open, companyId, meta, onClose, onDo
   const stepTitles = [t('step_who'), t('step_company'), t('step_functions'), t('step_review')]
   return (
     <Dialog open={open} title={t('invite_title')} onClose={onClose} labelledBy="invite-title">
+      <div className="set-steps" aria-hidden="true">
+        {stepTitles.map((x, i) => <span key={x} className={i + 1 < step ? 'is-done' : i + 1 === step ? 'is-current' : ''} />)}
+      </div>
       <div className="stepper">{t('step', { n: step })}</div>
-      <h3 ref={heading} tabIndex={-1}>{stepTitles[step - 1]}</h3>
+      <h3 ref={heading} tabIndex={-1} className="set-step-title">{stepTitles[step - 1]}</h3>
       {err && <Message kind="error">{err}</Message>}
       {step === 1 && (
         <form onSubmit={(e) => { e.preventDefault(); setStep(2) }}>
@@ -53,7 +56,7 @@ export default function AddDelegateDialog({ open, companyId, meta, onClose, onDo
           </Field>
           <Field label={t('email')} id="inv-email"><input id="inv-email" type="email" dir="ltr" value={form.email} onChange={(e) => setForm({ ...form, email: e.target.value })} /></Field>
           <Field label={t('mobile')} id="inv-mobile"><input id="inv-mobile" type="tel" dir="ltr" value={form.mobile} onChange={(e) => setForm({ ...form, mobile: e.target.value })} /></Field>
-          <div className="actions"><Button type="submit">{t('common.next', { ns: 'translation' })}</Button><Button type="button" variant="secondary" onClick={onClose}>{t('common.cancel', { ns: 'translation' })}</Button></div>
+          <div className="dialog-actions"><Button type="button" variant="secondary" onClick={onClose}>{t('common.cancel', { ns: 'translation' })}</Button><Button type="submit">{t('common.next', { ns: 'translation' })}</Button></div>
         </form>
       )}
       {step === 2 && (
@@ -63,23 +66,23 @@ export default function AddDelegateDialog({ open, companyId, meta, onClose, onDo
               {companies.map((c) => <option key={c.company_id} value={c.company_id}>{i18n.language === 'ar' ? c.trade_name_ar : c.trade_name_en}</option>)}
             </select>
           </Field>
-          <div className="actions"><Button onClick={() => setStep(3)}>{t('common.next', { ns: 'translation' })}</Button><Button variant="secondary" onClick={() => setStep(1)}>{t('common.back', { ns: 'translation' })}</Button></div>
+          <div className="dialog-actions"><Button variant="secondary" onClick={() => setStep(1)}>{t('common.back', { ns: 'translation' })}</Button><Button onClick={() => setStep(3)}>{t('common.next', { ns: 'translation' })}</Button></div>
         </div>
       )}
       {step === 3 && (
         <div>
           <RightsToggles value={toggles} onChange={setToggles} meta={meta} />
-          <div className="actions"><Button onClick={() => setStep(4)}>{t('common.next', { ns: 'translation' })}</Button><Button variant="secondary" onClick={() => setStep(2)}>{t('common.back', { ns: 'translation' })}</Button></div>
+          <div className="dialog-actions"><Button variant="secondary" onClick={() => setStep(2)}>{t('common.back', { ns: 'translation' })}</Button><Button onClick={() => setStep(4)}>{t('common.next', { ns: 'translation' })}</Button></div>
         </div>
       )}
       {step === 4 && (
         <div>
-          <p><strong><bdi>{form.entered_name || '—'}</bdi></strong> · <bdi>{companyName}</bdi></p>
+          <p className="set-review-who"><strong><bdi>{form.entered_name || '—'}</bdi></strong> · <bdi>{companyName}</bdi></p>
           <RightsSummary value={toggles} name={form.entered_name} company={companyName} />
           <p className="helper">{t('statement')}</p>
-          <div className="actions" aria-live="polite">
-            <Button onClick={submit} disabled={saving}>{saving ? t('common.saving', { ns: 'translation' }) : t('confirm_invite')}</Button>
+          <div className="dialog-actions" aria-live="polite">
             <Button variant="secondary" onClick={() => setStep(3)} disabled={saving}>{t('common.back', { ns: 'translation' })}</Button>
+            <Button onClick={submit} disabled={saving}>{saving ? t('common.saving', { ns: 'translation' }) : t('confirm_invite')}</Button>
           </div>
         </div>
       )}

@@ -1,0 +1,34 @@
+/* SC12 Delegate portfolio: one card per company, nearest deadline first. Logical properties only. */
+.pf-count { display: inline-flex; align-items: center; gap: 6px; }
+.pf-count .icon { color: var(--accent); }
+.pf-search { position: relative; display: flex; align-items: center; max-width: 420px; margin-bottom: 16px; }
+.pf-search .icon { position: absolute; inset-inline-start: 12px; color: var(--muted); pointer-events: none; }
+.pf-search input { width: 100%; padding-inline-start: 40px; }
+.pf-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(min(100%, 380px), 1fr)); gap: 16px; align-items: stretch; }
+.pf-card { display: flex; flex-direction: column; gap: 14px; padding: 0; overflow: hidden; border-top: 3px solid var(--border-strong); }
+.pf-tier-critical { border-top-color: var(--critical); }
+.pf-tier-urgent { border-top-color: var(--urgent); }
+.pf-tier-attention { border-top-color: var(--attention); }
+.pf-tier-neutral { border-top-color: var(--accent); }
+.pf-head { display: flex; gap: 12px; align-items: flex-start; padding: 18px 20px 0; }
+.pf-mark { display: inline-grid; place-items: center; width: 40px; height: 40px; border-radius: 10px; background: var(--accent-tint); color: var(--accent); font-weight: 700; flex: none; }
+.pf-head-text { min-width: 0; }
+.pf-head h2 { font-size: var(--fs-lg); margin: 0 0 4px; }
+.pf-next { display: flex; flex-wrap: wrap; align-items: center; gap: 6px 8px; margin: 0; font-size: var(--fs-sm); }
+.pf-next-label { color: var(--muted); }
+.pf-obls { list-style: none; margin: 0; padding: 0 20px; display: flex; flex-direction: column; }
+.pf-obls > li { padding: 12px 0; border-top: 1px solid var(--border); display: flex; flex-direction: column; gap: 6px; }
+.pf-obl-top { display: flex; justify-content: space-between; gap: 8px 12px; flex-wrap: wrap; align-items: baseline; }
+.pf-obl-date { font-size: var(--fs-sm); color: var(--text-2); font-variant-numeric: tabular-nums; }
+.pf-obl-chips { display: flex; flex-wrap: wrap; gap: 6px; }
+.pf-obl-chips .chip + .chip { margin-inline-start: 0; }
+.pf-missing { list-style: none; margin: 0; padding: 0; display: grid; gap: 4px; font-size: var(--fs-sm); }
+.pf-missing li { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; }
+.pf-ok { display: inline-flex; gap: 6px; align-items: center; margin: 0; font-size: var(--fs-sm); color: var(--ok); }
+.pf-obl-action { display: flex; flex-wrap: wrap; gap: 4px 12px; align-items: center; font-size: var(--fs-sm); }
+.pf-obl-action a { font-weight: 600; min-height: 32px; display: inline-flex; align-items: center; }
+.pf-foot { margin-top: auto; padding: 12px 20px 18px; background: var(--surface-2); border-top: 1px solid var(--border); display: flex; flex-direction: column; gap: 8px; }
+.pf-foot .helper { margin: 0; }
+.pf-limits { border-top: 0; padding-top: 0; margin-top: 0; }
+.pf-limits ul { margin: 0; padding-inline-start: 18px; }
+.pf-open { align-self: flex-start; }

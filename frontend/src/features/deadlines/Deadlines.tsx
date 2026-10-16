@@ -1,12 +1,14 @@
 import { Fragment, useMemo, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import { useAuth } from '../../app/auth'
-import { Button, Chip, Empty, Field, Message, Panel, Skeleton } from '../../components/ui'
+import { Icon } from '../../components/Icon'
+import { Button, Chip, Empty, Field, Message, PageHeader, Panel, Skeleton, Toolbar } from '../../components/ui'
 import { ApiError, post } from '../../lib/api'
-import { formatDate } from '../../lib/format'
+import { digits, formatDate } from '../../lib/format'
 import CalendarView from './CalendarView'
 import { errorCode, srOnly, useBi, useFetch, type CompanyView, type Obligation, type PortfolioView } from './lib'
 import { DateUpdatedChip, DaysBadge, MissingList, ObligationDetail, ReadinessChip, ShownDate, SourceLine, StatusChips } from './parts'
+import './deadlines.css'
 
 const VIEW_KEY = 'qx_deadlines_view'
 const TYPES = ['vat_return', 'ct_return', 'licence_renewal', 'ejari_renewal', 'other'] as const
@@ -58,16 +60,22 @@ export default function Deadlines() {
     const btns = toggleRef.current?.querySelectorAll('button')
     btns?.[view === 'list' ? 1 : 0]?.focus()
   }
+  const groups = groupRows(rows)
   return (
-    <div>
-      <h1>{t('title')}</h1>
-      <p className="helper">{t('intro')} {t('dubai_time_applies')}</p>
+    <div className="dl-page">
+      <PageHeader
+        title={t('title')}
+        subtitle={t('intro')}
+        meta={current.data?.rules_version ? <span className="dln-meta"><Icon name="file-check" size={16} />{t('rules_version', { v: current.data.rules_version.version, date: formatDate(current.data.rules_version.checked, i18n.language) })}</span> : undefined}
+        actions={
+          <div ref={toggleRef} role="group" aria-label={t('view_group')} className="dln-seg" onKeyDown={onToggleKey}>
+            <button type="button" aria-pressed={view === 'list'} onClick={() => setV('list')}><Icon name="menu" size={18} />{t('view_list')}</button>
+            <button type="button" aria-pressed={view === 'calendar'} onClick={() => setV('calendar')}><Icon name="calendar" size={18} />{t('view_calendar')}</button>
+          </div>
+        }
+      />
       <div aria-live="polite" style={srOnly}>{announce}{pendingN ? ` ${t('updating_n', { n: pendingN })}` : ''}</div>
-      <div ref={toggleRef} role="group" aria-label={t('view_group')} className="actions" onKeyDown={onToggleKey} style={{ marginBottom: 12 }}>
-        <Button variant={view === 'list' ? 'primary' : 'secondary'} aria-pressed={view === 'list'} onClick={() => setV('list')}>☰ {t('view_list')}</Button>
-        <Button variant={view === 'calendar' ? 'primary' : 'secondary'} aria-pressed={view === 'calendar'} onClick={() => setV('calendar')}>▦ {t('view_calendar')}</Button>
-      </div>
-      <div className="grid" style={{ gridTemplateColumns: 'repeat(auto-fit, minmax(180px, 1fr))', marginBottom: 12 }}>
+      <Toolbar label={t('filters')}>
         <Field label={t('filter_company')} id="dl-company">
           <select id="dl-company" value={company} onChange={(e) => setCompany(e.target.value)}>
             <option value="">{t('filter_all_companies')}</option>
@@ -86,10 +94,9 @@ export default function Deadlines() {
             <option value="done">{t('filter_done')}</option>
           </select>
         </Field>
-      </div>
+      </Toolbar>
       {current.data?.pending && <Message kind="info">{t('pending')}</Message>}
       {all.data?.withheld_note && <Message kind="info">{t('withheld')}</Message>}
-      {current.data?.rules_version && <p className="helper">{t('rules_version', { v: current.data.rules_version.version, date: formatDate(current.data.rules_version.checked, i18n.language) })}</p>}
       {all.loading && !all.data && (
         <Panel>
           <p aria-busy="true">{t('loading')}</p>
@@ -103,21 +110,71 @@ export default function Deadlines() {
       )}
       {all.data && current.data?.empty_state && <TaxDetailsEmpty view={current.data} onSaved={() => { all.reload(); current.reload() }} />}
       {all.data && rows.length === 0 && (all.data.items.length > 0 ? (
-        <Empty title={t('no_match')} action={<Button variant="secondary" onClick={() => { setCompany(''); setType(''); setStatus('open') }}>{t('clear_filters')}</Button>} />
-      ) : !current.data?.empty_state ? <Empty title={t('empty_title')} body={t('empty_linked')} /> : null)}
+        <Empty icon="search" title={t('no_match')} action={<Button variant="secondary" onClick={() => { setCompany(''); setType(''); setStatus('open') }}>{t('clear_filters')}</Button>} />
+      ) : !current.data?.empty_state ? <Empty icon="calendar" title={t('empty_title')} body={t('empty_linked')} /> : null)}
       {all.data && rows.length > 0 && view === 'list' && (
-        <ul style={{ listStyle: 'none', padding: 0, margin: 0 }} aria-label={t('title')}>
-          {rows.map((o) => (
-            <Fragment key={o.obligation_id}>
-              <DeadlineRow o={o} open={openId === o.obligation_id} onToggle={() => setOpenId(openId === o.obligation_id ? null : o.obligation_id)} />
-            </Fragment>
+        <div className="dln-groups">
+          {groups.map((g) => (
+            <section key={g.key} className={`dln-group dln-group-${g.key}`} aria-labelledby={`dln-${g.key}`}>
+              <h2 id={`dln-${g.key}`} className="dln-group-title">
+                <span className="dln-group-icon" aria-hidden="true"><Icon name={g.key === 'overdue' ? 'alert' : g.key === 'soon' ? 'clock' : g.key === 'done' ? 'check' : 'calendar'} size={16} /></span>
+                {t(`group.${g.key}`)}
+                <span className="tab-badge">{g.rows.length}</span>
+              </h2>
+              <ul className="dln-list" aria-label={t(`group.${g.key}`)}>
+                {g.rows.map((o) => (
+                  <Fragment key={o.obligation_id}>
+                    <DeadlineRow o={o} open={openId === o.obligation_id} onToggle={() => setOpenId(openId === o.obligation_id ? null : o.obligation_id)} />
+                  </Fragment>
+                ))}
+              </ul>
+            </section>
           ))}
-        </ul>
+        </div>
       )}
-      {all.data && view === 'calendar' && <CalendarView rows={rows} companyId={companyId} onOpen={(id) => { setV('list'); setOpenId(id) }} />}
+      {all.data && view === 'calendar' && <div className="card dln-cal"><CalendarView rows={rows} companyId={companyId} onOpen={(id) => { setV('list'); setOpenId(id) }} /></div>}
       {all.data && current.data?.empty_state && <p className="helper">{t('incomplete_note')}</p>}
     </div>
   )
+}
+
+type GroupKey = 'overdue' | 'soon' | 'later' | 'undated' | 'done'
+
+/** Urgency groups for the list (order kept from the API within each group: soonest first). */
+function groupRows(rows: Obligation[]): { key: GroupKey; rows: Obligation[] }[] {
+  const out: Record<GroupKey, Obligation[]> = { overdue: [], soon: [], later: [], undated: [], done: [] }
+  for (const o of rows) {
+    if (o.done) out.done.push(o)
+    else if (o.days_left === null || o.due_date === null) out.undated.push(o)
+    else if (o.days_left < 0) out.overdue.push(o)
+    else if (o.days_left <= 30) out.soon.push(o)
+    else out.later.push(o)
+  }
+  return (['overdue', 'soon', 'later', 'undated', 'done'] as GroupKey[]).filter((k) => out[k].length).map((key) => ({ key, rows: out[key] }))
+}
+
+function DateBlock({ o }: { o: Obligation }) {
+  const { lang } = useBi()
+  if (!o.due_date) return <span className="dln-date is-undated" aria-hidden="true">?</span>
+  const d = new Date(o.due_date + 'T00:00:00')
+  let month = ''
+  try {
+    month = new Intl.DateTimeFormat(lang === 'ar' ? 'ar-AE' : 'en-GB', { month: 'short' }).format(d)
+  } catch {
+    month = o.due_date.slice(5, 7)
+  }
+  return (
+    <span className={`dln-date tier-${o.done ? 'done' : o.days_left_tier}`} aria-hidden="true">
+      <span className="dln-date-day">{digits(String(d.getDate()), lang)}</span>
+      <span className="dln-date-month">{month}</span>
+      <span className="dln-date-year">{digits(String(d.getFullYear()), lang)}</span>
+    </span>
+  )
+}
+
+function SourceChip({ o }: { o: Obligation }) {
+  const { t } = useTranslation('deadlines')
+  return <Chip tone="info" icon={o.is_stated ? '⚑' : '∑'}>{o.is_stated ? t('source_stated') : t('source_computed')}</Chip>
 }
 
 function DeadlineRow({ o, open, onToggle }: { o: Obligation; open: boolean; onToggle: () => void }) {
@@ -125,30 +182,46 @@ function DeadlineRow({ o, open, onToggle }: { o: Obligation; open: boolean; onTo
   const { tx } = useBi()
   const days = o.days_left === null ? t('undated') : o.done ? '' : o.days_left
   const accessible = t('accessible_row', { name: tx(o.name), date: o.due_date ? formatDate(o.due_date, i18n.language) : t('undated'), days: String(days), missing: o.missing_items.length })
+  const detailId = `dln-detail-${o.obligation_id}`
   return (
-    <li className="card" style={{ marginBottom: 10 }} aria-label={accessible}>
-      <div style={{ display: 'flex', justifyContent: 'space-between', gap: 12, flexWrap: 'wrap' }}>
-        <div>
-          <strong>{tx(o.name)}</strong> · <bdi>{tx(o.company_name)}</bdi>
-          {o.period_start && <div className="helper">{t('period', { start: formatDate(o.period_start, i18n.language), end: formatDate(o.period_end, i18n.language) })}</div>}
-          <div><ShownDate o={o} /></div>
+    <li className={`dln-row ${open ? 'is-open' : ''}`} aria-label={accessible}>
+      <div className="dln-row-main">
+        <DateBlock o={o} />
+        <div className="dln-body">
+          <div className="dln-title">
+            <strong>{tx(o.name)}</strong>
+            <span className="dln-company"><bdi>{tx(o.company_name)}</bdi></span>
+          </div>
+          <div className="dln-sub">
+            <ShownDate o={o} />
+            {o.period_start && <span>{t('period', { start: formatDate(o.period_start, i18n.language), end: formatDate(o.period_end, i18n.language) })}</span>}
+          </div>
+          <div className="dln-chips">
+            <DaysBadge o={o} />
+            <StatusChips o={o} />
+            <ReadinessChip o={o} />
+            <SourceChip o={o} />
+            {o.is_demo && <Chip tone="neutral" icon="◇">{t('demo')}</Chip>}
+          </div>
+          {o.missing_items.length > 0 && <MissingList o={o} />}
+          {o.recalc_state === 'recalculation_pending' && <p className="helper">{t('pending_note')}</p>}
+          {o.recalc_state === 'recalculation_failed' && o.last_confirmed_date && <Message kind="warning">{t('error_rule', { date: formatDate(o.last_confirmed_date, i18n.language), saved: formatDate(o.calculation_time, i18n.language) })}</Message>}
+          <DateUpdatedChip o={o} />
         </div>
-        <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap', alignItems: 'flex-start' }}>
-          <DaysBadge o={o} />
-          <StatusChips o={o} />
-          <ReadinessChip o={o} />
-          {o.is_demo && <Chip tone="neutral" icon="◇">{t('demo')}</Chip>}
+        <div className="dln-action">
+          <Button variant="secondary" className="btn-sm" aria-expanded={open} aria-controls={detailId} onClick={onToggle}>
+            {open ? t('close_detail') : t('open_detail')}<Icon name="chevron-down" size={16} className="dln-chevron" />
+          </Button>
         </div>
       </div>
-      <SourceLine o={o} />
-      {o.calculated && o.due_date && <p className="helper" style={{ margin: '4px 0' }}>{t('calculated_note')}</p>}
-      {o.recalc_state === 'recalculation_pending' && <p className="helper">{t('pending_note')}</p>}
-      {o.recalc_state === 'recalculation_failed' && o.last_confirmed_date && <Message kind="warning">{t('error_rule', { date: formatDate(o.last_confirmed_date, i18n.language), saved: formatDate(o.calculation_time, i18n.language) })}</Message>}
-      <DateUpdatedChip o={o} />
-      <MissingList o={o} />
-      {o.notes.length > 0 && <ul className="helper" style={{ margin: '4px 0', paddingInlineStart: 20 }}>{o.notes.map((n, i) => <li key={i}>{tx(n)}</li>)}</ul>}
-      <Button variant="link" aria-expanded={open} onClick={onToggle}>{open ? t('close_detail') : t('open_detail')}</Button>
-      {open && <ObligationDetail o={o} />}
+      {open && (
+        <div className="dln-detail" id={detailId}>
+          <SourceLine o={o} />
+          {o.calculated && o.due_date && !o.notes.some((n) => tx(n) === t('calculated_note')) && <p className="helper">{t('calculated_note')}</p>}
+          {o.notes.length > 0 && <ul className="helper dln-notes">{o.notes.map((n, i) => <li key={i}>{tx(n)}</li>)}</ul>}
+          <ObligationDetail o={o} />
+        </div>
+      )}
     </li>
   )
 }

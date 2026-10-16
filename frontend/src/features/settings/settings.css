@@ -1,0 +1,79 @@
+/* SC11 Team, delegates and settings (also reminder settings and approval rights tabs). Logical properties only. */
+.set-panel > .panel:last-child { margin-bottom: 0; }
+
+/* People rows */
+.set-updated { font-size: var(--fs-xs); color: var(--muted); }
+.set-statement { display: flex; gap: 8px; align-items: flex-start; font-size: var(--fs-sm); color: var(--text-2); background: var(--surface-2); border-radius: var(--radius-sm); padding: 10px 12px; margin: 0 0 12px; }
+.set-statement .icon { color: var(--info); margin-top: 3px; }
+.set-people { list-style: none; margin: 0; padding: 0; border: 1px solid var(--border); border-radius: var(--radius); }
+.set-people-flat { margin-bottom: 8px; }
+.set-person { display: flex; gap: 14px; align-items: center; padding: 14px 16px; border-bottom: 1px solid var(--border); flex-wrap: wrap; }
+.set-person:last-child { border-bottom: 0; }
+.set-avatar { display: inline-grid; place-items: center; width: 40px; height: 40px; border-radius: 50%; background: var(--accent); color: var(--accent-contrast); font-weight: 700; flex: none; }
+.set-avatar.is-delegate { background: var(--accent-tint); color: var(--accent); }
+.set-avatar-lg { width: 56px; height: 56px; font-size: var(--fs-xl); }
+.set-person-main { flex: 1 1 280px; min-width: 0; display: flex; flex-direction: column; gap: 2px; }
+.set-person-name { display: flex; flex-wrap: wrap; align-items: center; gap: 4px 10px; }
+.set-person-name .chip + .chip { margin-inline-start: 0; }
+.set-role { display: inline-flex; align-items: center; padding: 1px 9px; border-radius: 999px; font-size: var(--fs-xs); font-weight: 600; background: var(--surface-3); color: var(--text-2); line-height: 1.7; }
+.set-person-meta { display: flex; flex-wrap: wrap; gap: 2px 18px; font-size: var(--fs-sm); color: var(--muted); }
+.set-rights { color: var(--text-2); }
+.set-person-actions { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; margin-inline-start: auto; }
+.set-row-actions { display: flex; gap: 8px; flex-wrap: wrap; }
+.set-row-actions .btn-sm { min-height: 40px; }
+@media (max-width: 720px) { .set-person-actions { margin-inline-start: 54px; } }
+
+/* Recent access changes */
+.set-changes { list-style: none; margin: 0; padding: 0; }
+.set-changes li { position: relative; display: flex; gap: 12px; align-items: flex-start; padding: 10px 0; border-bottom: 1px solid var(--border); flex-wrap: wrap; }
+.set-changes li:last-child { border-bottom: 0; }
+.set-change-dot { width: 10px; height: 10px; border-radius: 50%; background: var(--accent-tint-2); border: 2px solid var(--accent); margin-top: 7px; flex: none; }
+.set-change-main { flex: 1 1 260px; min-width: 0; display: flex; flex-direction: column; }
+.set-change-title { font-weight: 600; font-size: var(--fs-sm); }
+.set-change-by { font-size: var(--fs-xs); color: var(--muted); }
+.set-change-time { font-size: var(--fs-xs); color: var(--muted); white-space: nowrap; font-variant-numeric: tabular-nums; padding-top: 2px; }
+
+/* Switches: a real toggle with text state */
+.set-switch { display: flex; gap: 14px; align-items: flex-start; padding: 12px 0; border-bottom: 1px solid var(--border); }
+.set-switch:last-child { border-bottom: 0; }
+input.set-toggle[type="checkbox"] { appearance: none; -webkit-appearance: none; position: relative; width: 44px; height: 26px; margin: 2px 0 0; border-radius: 999px; background: var(--border-strong); cursor: pointer; flex: none; transition: background .15s; }
+input.set-toggle[type="checkbox"]::before { content: ""; position: absolute; top: 3px; inset-inline-start: 3px; width: 20px; height: 20px; border-radius: 50%; background: #fff; box-shadow: 0 1px 2px rgba(16, 24, 32, .25); transition: inset-inline-start .15s; }
+input.set-toggle[type="checkbox"]:checked { background: var(--accent); }
+input.set-toggle[type="checkbox"]:checked::before { inset-inline-start: 21px; }
+input.set-toggle[type="checkbox"]:disabled { cursor: not-allowed; opacity: .55; }
+input.set-toggle[type="checkbox"]:focus-visible { outline: 3px solid var(--focus); outline-offset: 2px; }
+.set-switch > div { flex: 1; min-width: 0; }
+.set-switch-label { font-weight: 600; cursor: pointer; }
+.set-switch .desc { color: var(--muted); font-size: var(--fs-sm); }
+.set-switch .switch-state { display: inline-flex; align-items: center; gap: 4px; margin-inline-start: auto; font-size: var(--fs-xs); font-weight: 700; text-transform: uppercase; letter-spacing: .04em; color: var(--muted); padding: 2px 8px; border-radius: 999px; background: var(--surface-3); white-space: nowrap; }
+html[dir="rtl"] .set-switch .switch-state { text-transform: none; letter-spacing: 0; }
+.set-switch.is-on .switch-state { background: var(--ok-bg); color: var(--ok); }
+.set-locked { display: flex; flex-wrap: wrap; align-items: center; gap: 4px 6px; margin-top: 4px; color: var(--text-2); }
+.set-rights-sub { font-size: var(--fs-md); margin: 20px 0 4px; }
+.set-rights-sub.set-first { margin-top: 4px; }
+.set-summary { margin: 8px 0 0; padding-inline-start: 20px; display: grid; gap: 4px; }
+
+/* Invite stepper */
+.set-steps { display: grid; grid-template-columns: repeat(4, 1fr); gap: 6px; margin-bottom: 10px; }
+.set-steps span { height: 4px; border-radius: 999px; background: var(--surface-3); }
+.set-steps span.is-done { background: var(--accent-tint-2); }
+.set-steps span.is-current { background: var(--accent); }
+.set-step-title { font-size: var(--fs-lg); margin-bottom: 14px; }
+.set-review-who { padding: 10px 12px; background: var(--surface-2); border-radius: var(--radius-sm); }
+.dialog .field:last-of-type { margin-bottom: 4px; }
+
+/* Profile */
+.set-identity { display: flex; gap: 16px; align-items: center; padding: 16px; background: var(--surface-2); border-radius: var(--radius); margin-bottom: 20px; }
+.set-identity .kv { flex: 1; min-width: 0; }
+.set-form-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 0 20px; }
+.set-form-actions { grid-column: 1 / -1; display: flex; gap: 10px; margin-top: 4px; }
+@media (max-width: 720px) { .set-form-grid { grid-template-columns: 1fr; } }
+
+/* Reminder settings */
+.set-reminder-foot { display: flex; align-items: flex-end; gap: 12px 16px; flex-wrap: wrap; margin-top: 12px; }
+.set-reminder-foot .field { margin: 0; flex: 0 1 320px; min-width: 200px; }
+.set-window { display: flex; gap: 6px; align-items: center; margin: 12px 0 0; }
+
+/* Approval rights grant form */
+.set-grant-form fieldset { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 0 20px; padding: 16px; }
+@media (max-width: 720px) { .set-grant-form fieldset { grid-template-columns: 1fr; } }

@@ -3,7 +3,8 @@ import { useTranslation } from 'react-i18next'
 import { useNavigate } from 'react-router-dom'
 import { useAuth } from '../../app/auth'
 import { Slot, useSlotEntries } from '../../components/Slot'
-import { Button, Chip, Field, Ident, Message, Panel, Skeleton } from '../../components/ui'
+import { Icon } from '../../components/Icon'
+import { Button, Chip, Field, Ident, Message, PageHeader, Panel, Skeleton } from '../../components/ui'
 import { ApiError, post } from '../../lib/api'
 import { bl, useFetch, type SubscriptionView } from './lib'
 import { FeeCard, Proposed, StatusBadge, TermsSheet } from './parts'
@@ -23,7 +24,7 @@ export default function Welcome() {
   const { t, i18n } = useTranslation('subscription')
   const { companyId, company, setLanguage } = useAuth()
   const nav = useNavigate()
-  const heading = useRef<HTMLHeadingElement>(null)
+  const heading = useRef<HTMLSpanElement>(null)
   const { data, error, loading, slow, reload } = useFetch<WelcomeData>(companyId ? `/api/companies/${companyId}/welcome` : null, [companyId])
   const [langChoice, setLang] = useState<string | null>(null)
   const [channelChoice, setChannel] = useState<string | null>(null)
@@ -80,63 +81,96 @@ export default function Welcome() {
   }
 
   return (
-    <div className="page">
-      <p className="hint"><bdi>{tradeName}</bdi></p>
-      <h1 ref={heading} tabIndex={-1}>{t('welcome.title')}</h1>
-      <p>{t('welcome.intro')}<Proposed /></p>
+    <div className="sub-page sub-welcome">
+      <div className="sub-hero">
+        <PageHeader
+          eyebrow={<bdi>{tradeName}</bdi>}
+          title={<span ref={heading} tabIndex={-1}>{t('welcome.title')}</span>}
+          subtitle={<>{t('welcome.intro')}<Proposed /></>}
+          meta={firstSub ? (
+            <>
+              <span className="sub-meta-item"><Icon name="file-check" size={16} />{t('screen.licence')} <Ident>{firstSub.licence_number}</Ident></span>
+              <StatusBadge badge={firstSub.badge} />
+            </>
+          ) : undefined}
+        />
+      </div>
       {!owner && <Message kind="info">{t('screen.only_owner')}</Message>}
 
-      {firstSub ? (
-        <Panel title={<>{t('screen.licence')} <Ident>{firstSub.licence_number}</Ident> <StatusBadge badge={firstSub.badge} /></>} id="welcome-sub">
-          <FeeCard sub={firstSub} />
-        </Panel>
-      ) : (
-        <Message kind="info">{view.licences.some((l) => l.empty_state === 'in_cohort_no_event') ? t('screen.empty_in_cohort') : t('screen.empty_not_in_pilot')}</Message>
-      )}
-
-      <Panel title={t('welcome.included')} id="welcome-included">
-        <ul>{view.included.map((m) => <li key={m.code}>{bl(m, i18n.language)}</li>)}</ul>
-        <h3>{t('welcome.not_included')}</h3>
-        <ul>{view.not_included.map((m) => <li key={m.code}>{bl(m, i18n.language)}</li>)}</ul>
-        <p>{t('welcome.audit_note')}<Proposed /></p>
-        <p>{t('welcome.audit_other')}</p>
-        <p className="hint">
-          {t('welcome.terms_version', { v: data.welcome.terms_version_shown })} · {t('welcome.notice_version', { v: data.welcome.notice_version_shown })} ·{' '}
-          <Button variant="link" onClick={() => setTermsOpen(true)}>{t('screen.see_terms')}</Button>
-        </p>
-      </Panel>
-
-      {owner && (
-        <Panel title={t('welcome.reminder')} id="welcome-choices">
-          <fieldset>
-            <legend>{t('welcome.language')}</legend>
-            {(['ar', 'en'] as const).map((l) => (
-              <label key={l} style={{ display: 'inline-flex', gap: 6, alignItems: 'center', minHeight: 44, marginInlineEnd: 16 }} lang={l}>
-                <input type="radio" name="welcome-lang" value={l} checked={lang === l} onChange={() => setLang(l)} /> {l === 'ar' ? 'العربية' : 'English'}
-              </label>
-            ))}
-          </fieldset>
-          <Field label={t('welcome.reminder')} id="welcome-channel" hint={t('welcome.reminder_stub')}>
-            <select id="welcome-channel" value={channel} onChange={(e) => setChannel(e.target.value)}>
-              <option value="portal">{t('welcome.reminder_portal')}</option>
-              <option value="email" disabled={data.reminder_channels.email === false}>{t('welcome.reminder_email')}</option>
-              <option value="sms" disabled={data.reminder_channels.sms === false}>{t('welcome.reminder_sms')}</option>
-            </select>
-          </Field>
-        </Panel>
-      )}
-
-      <Panel title={t('welcome.checklist')} id="welcome-checklist">
-        {checklist.length === 0 ? <p className="hint">{t('welcome.checklist_empty')}</p> : <Slot name="welcome.checklist" />}
-      </Panel>
-
-      {data.welcome.status !== 'pending' && <p><Chip tone="info">{data.welcome.status === 'done' ? t('welcome.done') : t('welcome.later')}</Chip> {t('welcome.resume')}</p>}
-      {err && <Message kind="error">{err}</Message>}
-      <div className="actions">
-        <Button disabled={sending} onClick={() => finish('done')}>{sending ? t('screen.sending') : t('welcome.done')}</Button>
-        <Button variant="secondary" disabled={sending} onClick={() => finish('later')}>{t('welcome.later')}</Button>
+      <div className="sub-grid">
+        <div className="sub-col">
+          {firstSub ? (
+            <FeeCard sub={firstSub} />
+          ) : (
+            <Message kind="info">{view.licences.some((l) => l.empty_state === 'in_cohort_no_event') ? t('screen.empty_in_cohort') : t('screen.empty_not_in_pilot')}</Message>
+          )}
+        </div>
+        <div className="sub-col">
+          {checklist.length === 0 ? (
+            <Panel title={t('welcome.checklist')} id="welcome-checklist"><p className="hint">{t('welcome.checklist_empty')}</p></Panel>
+          ) : (
+            <div id="welcome-checklist" className="sub-checklist-slot"><Slot name="welcome.checklist" /></div>
+          )}
+          {owner && (
+            <Panel title={t('welcome.choices')} id="welcome-choices" className="sub-choices">
+              <fieldset className="sub-lang">
+                <legend>{t('welcome.language')}</legend>
+                <div className="sub-seg">
+                  {(['ar', 'en'] as const).map((l) => (
+                    <label key={l} lang={l} className={lang === l ? 'is-on' : undefined}>
+                      <input type="radio" name="welcome-lang" value={l} checked={lang === l} onChange={() => setLang(l)} /> {l === 'ar' ? 'العربية' : 'English'}
+                    </label>
+                  ))}
+                </div>
+              </fieldset>
+              <Field label={t('welcome.reminder')} id="welcome-channel" hint={t('welcome.reminder_stub')}>
+                <select id="welcome-channel" value={channel} onChange={(e) => setChannel(e.target.value)}>
+                  <option value="portal">{t('welcome.reminder_portal')}</option>
+                  <option value="email" disabled={data.reminder_channels.email === false}>{t('welcome.reminder_email')}</option>
+                  <option value="sms" disabled={data.reminder_channels.sms === false}>{t('welcome.reminder_sms')}</option>
+                </select>
+              </Field>
+            </Panel>
+          )}
+        </div>
       </div>
-      <p className="hint">{t('welcome.resume')}</p>
+
+      <section className="card sub-cover" aria-labelledby="welcome-included-title" id="welcome-included">
+        <div className="sub-cover-cols">
+          <div>
+            <h2 id="welcome-included-title" className="sub-cover-title">{t('welcome.included')}</h2>
+            <ul className="sub-checks">
+              {view.included.map((m) => <li key={m.code}><span className="sub-check sub-check-yes" aria-hidden="true"><Icon name="check" size={14} /></span>{bl(m, i18n.language)}</li>)}
+            </ul>
+          </div>
+          <div>
+            <h2 className="sub-cover-title">{t('welcome.not_included')}</h2>
+            <ul className="sub-checks">
+              {view.not_included.map((m) => <li key={m.code}><span className="sub-check sub-check-no" aria-hidden="true"><Icon name="close" size={14} /></span>{bl(m, i18n.language)}</li>)}
+            </ul>
+          </div>
+        </div>
+        <div className="sub-cover-notes">
+          <p>{t('welcome.audit_note')}<Proposed /></p>
+          <p>{t('welcome.audit_other')}</p>
+          <p className="hint">
+            {t('welcome.terms_version', { v: data.welcome.terms_version_shown })} · {t('welcome.notice_version', { v: data.welcome.notice_version_shown })} ·{' '}
+            <Button variant="link" onClick={() => setTermsOpen(true)}>{t('screen.see_terms')}</Button>
+          </p>
+        </div>
+      </section>
+
+      {err && <Message kind="error">{err}</Message>}
+      <div className="sub-finish">
+        <div className="sub-finish-text">
+          {data.welcome.status !== 'pending' && <Chip tone="info">{data.welcome.status === 'done' ? t('welcome.done') : t('welcome.later')}</Chip>}
+          <span className="hint">{t('welcome.resume')}</span>
+        </div>
+        <div className="sub-finish-actions">
+          <Button variant="secondary" disabled={sending} onClick={() => finish('later')}>{t('welcome.later')}</Button>
+          <Button disabled={sending} onClick={() => finish('done')}>{sending ? t('screen.sending') : t('welcome.done')}</Button>
+        </div>
+      </div>
       <TermsSheet companyId={companyId} open={termsOpen} onClose={() => setTermsOpen(false)} />
     </div>
   )

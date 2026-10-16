@@ -1,4 +1,5 @@
 import { useTranslation } from 'react-i18next'
+import { Icon } from '../../components/Icon'
 import { PHASE_A, PHASE_B, type Toggle, type ToggleMeta } from './types'
 
 /**
@@ -9,9 +10,9 @@ export function RightsToggles({ value, onChange, meta, readOnly = false }: { val
   const { t } = useTranslation('settings')
   const lockedFor = (x: Toggle) => meta.find((m) => m.toggle === x)?.locked ?? true
   return (
-    <div>
+    <div className="set-rights-list">
       {PHASE_A.map((x) => <Row key={x} toggle={x} locked={false} value={value} onChange={onChange} readOnly={readOnly} />)}
-      <h3 style={{ marginTop: 16 }}>{t('phase_b_section')}</h3>
+      <h3 className="set-rights-sub">{t('phase_b_section')}</h3>
       <p className="helper">{t('only_you_approve')}</p>
       {PHASE_B.map((x) => <Row key={x} toggle={x} locked={lockedFor(x)} value={value} onChange={onChange} readOnly={readOnly} />)}
     </div>
@@ -23,8 +24,9 @@ function Row({ toggle, locked, value, onChange, readOnly }: { toggle: Toggle; lo
   const on = value.includes(toggle)
   const disabled = readOnly || locked
   return (
-      <div className="switch">
+      <div className={`switch set-switch ${on ? 'is-on' : ''}`}>
         <input
+          className="set-toggle"
           type="checkbox"
           role="switch"
           id={`toggle-${toggle}`}
@@ -35,12 +37,12 @@ function Row({ toggle, locked, value, onChange, readOnly }: { toggle: Toggle; lo
           onChange={(e) => onChange?.(e.target.checked ? [...value, toggle] : value.filter((v) => v !== toggle))}
         />
         <div>
-          <label htmlFor={`toggle-${toggle}`}>{t(`fn_${toggle}`)}</label>
+          <label htmlFor={`toggle-${toggle}`} className="set-switch-label">{t(`fn_${toggle}`)}</label>
           <div className="desc" id={`toggle-${toggle}-desc`}>
             {t(`fn_${toggle}_desc`)}
             {locked && (
-              <div>
-                <strong>{t('locked')}</strong> <span className="notice-tbc">{t('requires_evidence')} · {t('proposed')}</span>
+              <div className="set-locked">
+                <Icon name="lock" size={14} /><strong>{t('locked')}</strong> <span className="notice-tbc">{t('requires_evidence')} · {t('proposed')}</span>
               </div>
             )}
           </div>
@@ -53,7 +55,7 @@ function Row({ toggle, locked, value, onChange, readOnly }: { toggle: Toggle; lo
 export function RightsSummary({ value, name, company }: { value: Toggle[]; name?: string | null; company?: string }) {
   const { t } = useTranslation('settings')
   return (
-    <ul>
+    <ul className="set-summary">
       <li>{t('can_view', { v: value.includes('view_dashboard') ? t('yes') : t('no') })}</li>
       <li>{t('can_prepare', { v: value.includes('prepare_data') ? t('yes') : t('no') })}</li>
       <li>{t('can_consent')}</li>

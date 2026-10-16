@@ -1,8 +1,10 @@
 import { useEffect, useRef } from 'react'
 import { useTranslation } from 'react-i18next'
+import { Icon } from '../../components/Icon'
 import { Button, Chip, Dialog, Ident, Message, Skeleton } from '../../components/ui'
 import { formatAED, formatDate, formatNumber } from '../../lib/format'
 import { BADGE_ICON, BADGE_TONE, useFetch, type Param, type Sub } from './lib'
+import './subscription.css'
 
 /** Proposed-wording label shown beside every commercial or legal sentence. */
 export function Proposed() {
@@ -41,28 +43,46 @@ export function FeeCard({ sub }: { sub: Sub }) {
   const ex = fee.label === 'example'
   const exampleTag = ex ? <Chip tone="draft" icon="✎">{t('example')}</Chip> : null
   return (
-    <section className="card" aria-labelledby={`fee-${sub.id}`}>
-      <h3 id={`fee-${sub.id}`}>{t('screen.fee_card')} {exampleTag}</h3>
-      {ex && <Message kind="info">{t('screen.example_banner')}</Message>}
-      <dl className="kv">
-        <dt>{t('screen.licence_fee_row')}</dt>
-        <dd>{t('screen.licence_fee_value')}</dd>
-        <dt>{t('screen.subscription_row')}</dt>
-        <dd>
-          <bdi dir="ltr">{formatAED(fee.gross_fils, lang)}</bdi> {t('screen.per_year')} {exampleTag}
-          <div className="hint">{t('screen.monthly_caption', { amount: formatNumber(fee.monthly_display_fils / 100, lang), version: sub.fee_schedule_version })}</div>
-        </dd>
-        <dt>{t('screen.net')}</dt>
-        <dd><bdi dir="ltr">{formatAED(fee.net_fils, lang)}</bdi></dd>
-        <dt>{t('screen.vat')}</dt>
-        <dd><bdi dir="ltr">{formatAED(fee.vat_fils, lang)}</bdi> <span className="notice-tbc">{t('screen.vat_tbc')}</span></dd>
-        <dt>{t('screen.gross')}</dt>
-        <dd><bdi dir="ltr">{formatAED(fee.gross_fils, lang)}</bdi></dd>
-      </dl>
-      <p>{t('screen.collected_by_det')}</p>
-      <p>{t('screen.separate_line')}<Proposed /></p>
-      <p>{t('screen.not_dependent')}<Proposed /></p>
-      <p className="hint">
+    <section className="card sub-fee" aria-labelledby={`fee-${sub.id}`}>
+      <header className="sub-fee-head">
+        <h3 id={`fee-${sub.id}`}>{t('screen.fee_card')}</h3>
+        {exampleTag}
+      </header>
+      {ex && <p className="sub-example-note" role="note"><Icon name="info" size={16} /><span>{t('screen.example_banner')}</span></p>}
+      <table className="sub-receipt">
+        <caption className="visually-hidden">{t('screen.fee_card')}</caption>
+        <tbody>
+          <tr>
+            <th scope="row">{t('screen.licence_fee_row')}</th>
+            <td className="sub-receipt-text">{t('screen.licence_fee_value')}</td>
+          </tr>
+          <tr>
+            <th scope="row">
+              {t('screen.subscription_row')}
+              <div className="hint">{t('screen.monthly_caption', { amount: formatNumber(fee.monthly_display_fils / 100, lang), version: sub.fee_schedule_version })}</div>
+            </th>
+            <td className="num"><bdi dir="ltr">{formatAED(fee.gross_fils, lang)}</bdi> <span className="sub-per">{t('screen.per_year')}</span></td>
+          </tr>
+          <tr className="sub-receipt-sub">
+            <th scope="row">{t('screen.net')}</th>
+            <td className="num"><bdi dir="ltr">{formatAED(fee.net_fils, lang)}</bdi></td>
+          </tr>
+          <tr className="sub-receipt-sub">
+            <th scope="row">{t('screen.vat')} <span className="notice-tbc">{t('screen.vat_tbc')}</span></th>
+            <td className="num"><bdi dir="ltr">{formatAED(fee.vat_fils, lang)}</bdi></td>
+          </tr>
+          <tr className="sub-receipt-total">
+            <th scope="row">{t('screen.gross')} {exampleTag}</th>
+            <td className="num"><bdi dir="ltr">{formatAED(fee.gross_fils, lang)}</bdi></td>
+          </tr>
+        </tbody>
+      </table>
+      <ul className="sub-fee-notes">
+        <li>{t('screen.collected_by_det')}</li>
+        <li>{t('screen.separate_line')}<Proposed /></li>
+        <li>{t('screen.not_dependent')}<Proposed /></li>
+      </ul>
+      <p className="hint sub-versions">
         {t('screen.fee_schedule_short', { version: sub.fee_schedule_version })} · {sub.opt_out_refund_config_version ? t('screen.opt_out_settings', { version: sub.opt_out_refund_config_version }) : t('screen.opt_out_settings_not_set')}
       </p>
     </section>
@@ -74,10 +94,10 @@ export function ParametersList({ parameters }: { parameters: Record<string, Para
   const { t } = useTranslation('subscription')
   const keys = ['opt_out_window_days', 'refund_window_days', 'cancel_effective', 'refund_mode', 'notice_period']
   return (
-    <section className="card" aria-labelledby="sub-params">
+    <section className="card sub-params" aria-labelledby="sub-params">
       <h3 id="sub-params">{t('screen.parameters')}</h3>
-      <Message kind="info">{t('screen.det_rule_not_set')}</Message>
-      <dl className="kv">
+      <p className="hint">{t('screen.det_rule_not_set')}</p>
+      <dl className="kv sub-params-kv">
         {keys.map((k) => {
           const p = parameters[k]
           return (

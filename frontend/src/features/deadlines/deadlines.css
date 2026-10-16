@@ -1,0 +1,76 @@
+/* SC4 Deadlines: urgency groups, compact rows, rule detail on demand. Logical properties only. */
+.dln-meta { display: inline-flex; align-items: center; gap: 6px; }
+.dln-seg { display: inline-flex; padding: 3px; gap: 2px; background: var(--surface-3); border-radius: 10px; }
+.dln-seg button { display: inline-flex; align-items: center; gap: 8px; min-height: 40px; padding: 0 14px; border: 0; border-radius: 8px; background: transparent; cursor: pointer; color: var(--text-2); font-weight: 500; }
+.dln-seg button[aria-pressed="true"] { background: var(--surface); color: var(--accent); box-shadow: var(--shadow-sm); font-weight: 600; }
+.dln-groups { display: flex; flex-direction: column; gap: 20px; }
+.dln-group-title { display: flex; align-items: center; gap: 8px; font-size: var(--fs-md); margin: 0 0 8px; }
+.dln-group-icon { display: inline-grid; place-items: center; width: 28px; height: 28px; border-radius: 8px; background: var(--surface-3); color: var(--text-2); }
+.dln-group-overdue .dln-group-icon { background: var(--critical-bg); color: var(--critical); }
+.dln-group-soon .dln-group-icon { background: var(--attention-bg); color: var(--attention); }
+.dln-group-done .dln-group-icon { background: var(--ok-bg); color: var(--ok); }
+.dln-list { list-style: none; margin: 0; padding: 0; background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius); box-shadow: var(--shadow-sm); }
+.dln-group-overdue .dln-list { border-inline-start: 3px solid var(--critical); }
+.dln-group-soon .dln-list { border-inline-start: 3px solid var(--attention); }
+.dln-row { border-bottom: 1px solid var(--border); }
+.dln-row:last-child { border-bottom: 0; }
+.dln-row-main { display: grid; grid-template-columns: 60px minmax(0, 1fr) auto; gap: 4px 16px; align-items: start; padding: 14px 16px; }
+.dln-date { display: flex; flex-direction: column; align-items: center; justify-content: center; width: 60px; min-height: 64px; border-radius: 10px; background: var(--surface-3); color: var(--text-2); line-height: 1.1; font-variant-numeric: tabular-nums; }
+.dln-date-day { font-size: 1.375rem; font-weight: 700; }
+.dln-date-month { font-size: var(--fs-xs); font-weight: 600; text-transform: uppercase; letter-spacing: .03em; }
+html[dir="rtl"] .dln-date-month { text-transform: none; letter-spacing: 0; }
+.dln-date-year { font-size: .6875rem; color: var(--muted); }
+.dln-date.tier-critical { background: var(--critical-bg); color: var(--critical); }
+.dln-date.tier-urgent { background: var(--urgent-bg); color: var(--urgent); }
+.dln-date.tier-attention { background: var(--attention-bg); color: var(--attention); }
+.dln-date.tier-done { background: var(--ok-bg); color: var(--ok); }
+.dln-date.is-undated { font-size: 1.375rem; font-weight: 700; background: var(--info-bg); color: var(--info); }
+.dln-body { min-width: 0; display: flex; flex-direction: column; gap: 4px; }
+.dln-title { display: flex; flex-wrap: wrap; align-items: baseline; gap: 2px 10px; }
+.dln-company { color: var(--muted); font-size: var(--fs-sm); }
+.dln-sub { display: flex; flex-wrap: wrap; gap: 2px 14px; font-size: var(--fs-sm); color: var(--text-2); }
+.dln-chips { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 2px; }
+.dln-chips .chip + .chip, .dln-chips span .chip + .chip { margin-inline-start: 0; }
+.dln-body ul { font-size: var(--fs-sm); }
+.dln-body .message { margin: 4px 0; }
+.dln-action { align-self: center; }
+.dln-action .btn-sm { min-height: 40px; }
+.dln-chevron { transition: transform .15s; }
+.dln-row.is-open .dln-chevron { transform: rotate(180deg); }
+.dln-detail { margin: 0 16px 14px; margin-inline-start: 92px; padding: 12px 14px; background: var(--surface-2); border-radius: var(--radius-sm); font-size: var(--fs-sm); }
+.dln-detail details { margin-top: 6px; }
+.dln-notes { margin: 6px 0; padding-inline-start: 18px; }
+.dln-cal { padding: 16px; }
+@media (max-width: 720px) {
+  .dln-row-main { grid-template-columns: 52px minmax(0, 1fr); padding: 12px; }
+  .dln-date { width: 52px; min-height: 56px; }
+  .dln-action { grid-column: 2; align-self: start; }
+  .dln-detail { margin: 0 12px 12px; }
+}
+/* Calendar */
+.dln-cal-head { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; margin-bottom: 6px; }
+.dln-cal-head h2 { margin: 0 4px; font-size: var(--fs-lg); min-width: 10ch; text-align: center; }
+.dln-cal-nav { min-width: 40px; min-height: 40px; padding: 0 8px; }
+.dln-cal-grid { display: grid; grid-template-columns: repeat(7, minmax(0, 1fr)); gap: 4px; margin-top: 8px; }
+.dln-cal-wd { text-align: center; font-size: var(--fs-xs); font-weight: 600; color: var(--muted); padding: 4px 0; }
+.dln-cal-cell { min-height: 84px; border: 1px solid var(--border); border-radius: var(--radius-sm); background: var(--surface); overflow: hidden; }
+.dln-cal-cell.is-off { background: var(--surface-2); }
+.dln-cal-cell.is-today { border-color: var(--accent); box-shadow: inset 0 0 0 1px var(--accent); }
+.dln-cal-cell.has-items:hover { border-color: var(--accent-tint-2); }
+.dln-cal-cell button { display: flex; flex-direction: column; align-items: stretch; gap: 2px; width: 100%; height: 100%; min-height: 84px; padding: 6px; border: 0; background: none; text-align: start; cursor: pointer; font: inherit; color: inherit; }
+.dln-cal-day { font-weight: 700; font-variant-numeric: tabular-nums; }
+.is-today .dln-cal-day { color: var(--accent); }
+.dln-cal-note { font-size: .6875rem; color: var(--muted); }
+.dln-cal-item { display: block; font-size: .72rem; line-height: 1.35; padding: 2px 6px; border-radius: 4px; background: var(--surface-3); color: var(--text-2); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.dln-cal-item.tier-critical { background: var(--critical-bg); color: var(--critical); }
+.dln-cal-item.tier-urgent { background: var(--urgent-bg); color: var(--urgent); }
+.dln-cal-item.tier-attention { background: var(--attention-bg); color: var(--attention); }
+.dln-cal-item.tier-done { background: var(--ok-bg); color: var(--ok); }
+.dln-cal-open { margin-top: 12px; padding: 14px 16px; border-radius: var(--radius); background: var(--surface-2); border: 1px solid var(--border); }
+.dln-cal-open h3 { margin-bottom: 6px; }
+@media (max-width: 560px) {
+  .dln-cal-cell, .dln-cal-cell button { min-height: 56px; }
+  .dln-cal-item { font-size: 0; padding: 0; height: 6px; border-radius: 3px; }
+  .dln-cal-note { display: none; }
+  .dln-cal { padding: 10px; }
+}

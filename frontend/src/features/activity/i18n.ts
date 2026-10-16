@@ -17,6 +17,7 @@ const en = {
   retention: 'Kept for {{n}} months (illustrative, for production).',
   page: 'Page {{p}} of {{n}}', prev: 'Previous', next: 'Next',
   reason: 'Reason code',
+  times_dubai: 'Times are Dubai time',
 }
 const ar: typeof en = {
   nav: 'النشاط',
@@ -34,6 +35,7 @@ const ar: typeof en = {
   retention: 'يُحتفظ به لمدة {{n}} شهراً (توضيحي، للإنتاج).',
   page: 'الصفحة {{p}} من {{n}}', prev: 'السابق', next: 'التالي',
   reason: 'رمز السبب',
+  times_dubai: 'الأوقات بتوقيت دبي',
 }
 i18n.addResourceBundle('en', 'activity', en)
 i18n.addResourceBundle('ar', 'activity', ar)

@@ -4,10 +4,11 @@ import { useSearchParams } from 'react-router-dom'
 import { useAuth } from '../../app/auth'
 import { Placeholder } from '../../components/Placeholder'
 import { useSlotEntries } from '../../components/Slot'
-import { Skeleton } from '../../components/ui'
+import { PageHeader, Skeleton, Tabs } from '../../components/ui'
 import AccessBanner from './AccessBanner'
 import ProfileTab from './ProfileTab'
 import TeamTab from './TeamTab'
+import './settings.css'
 
 /** SC11 Team, delegates and settings. Tabs: team (owner full / delegate own view), profile, plus `settings.tabs` slot entries. */
 export default function Settings() {
@@ -33,31 +34,10 @@ export default function Settings() {
   const Extra = extra.find((e) => e.id === tab)?.element as React.ComponentType | undefined
   return (
     <div className="settings-page">
-      <style>{`
-        .people-cards { display: none; }
-        @media (max-width: 720px) { .people-table { display: none; } .people-cards { display: grid; gap: 12px; } }
-        .switch { display: flex; align-items: flex-start; gap: 12px; padding: 10px 0; border-bottom: 1px solid var(--border); }
-        .switch input { width: 44px; height: 24px; margin-top: 4px; flex: none; }
-        .switch .switch-state { font-weight: 600; margin-inline-start: auto; }
-        .switch .desc { color: var(--muted); font-size: .9rem; }
-        .stepper { font-size: .9rem; color: var(--muted); margin-bottom: 8px; }
-      `}</style>
-      <h1>{t('title')}</h1>
+      <PageHeader title={t('title')} subtitle={t('subtitle')} />
       <AccessBanner />
-      <div className="tabs" role="tablist" aria-label={t('title')}>
-        {tabs.map((x) => (
-          <button key={x.id} role="tab" id={`tab-${x.id}`} aria-selected={tab === x.id} aria-controls={`panel-${x.id}`} onClick={() => select(x.id)} onKeyDown={(e) => {
-            const i = tabs.findIndex((y) => y.id === tab)
-            if (e.key === 'ArrowRight' || e.key === 'ArrowLeft') {
-              const dir = (e.key === 'ArrowRight') !== (document.documentElement.dir === 'rtl') ? 1 : -1
-              select(tabs[(i + dir + tabs.length) % tabs.length].id)
-            }
-          }}>
-            {x.label}
-          </button>
-        ))}
-      </div>
-      <div role="tabpanel" id={`panel-${tab}`} aria-labelledby={`tab-${tab}`}>
+      <Tabs tabs={tabs} value={tab} onChange={select} label={t('title')} idPrefix="settings" />
+      <div role="tabpanel" id={`settings-${tab}-panel`} aria-labelledby={`settings-${tab}`} className="set-panel">
         {tab === 'team' && showTeam && <TeamTab companyId={companyId} />}
         {tab === 'profile' && <ProfileTab />}
         {Extra && (

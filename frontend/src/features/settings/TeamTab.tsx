@@ -1,7 +1,8 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import { useAuth } from '../../app/auth'
-import { Button, Chip, Dialog, Empty, Message, Panel, Skeleton, Table } from '../../components/ui'
+import { Icon } from '../../components/Icon'
+import { Button, Chip, Dialog, Empty, Message, Panel, Skeleton } from '../../components/ui'
 import { ApiError, del, get, patch, post } from '../../lib/api'
 import { formatDate, formatDateTime } from '../../lib/format'
 import AddDelegateDialog from './AddDelegateDialog'
@@ -132,40 +133,42 @@ export default function TeamTab({ companyId }: { companyId: string }) {
         id="people"
         actions={
           <>
-            <span className="muted">{t('last_updated')}: {formatDateTime(data.last_updated, lang)}</span>
-            <Button variant="secondary" onClick={load}>{t('refresh')}</Button>
+            <span className="set-updated">{t('last_updated')}: <span className="nowrap">{formatDateTime(data.last_updated, lang)}</span></span>
+            <Button variant="secondary" className="btn-sm" onClick={load}><Icon name="history" size={16} />{t('refresh')}</Button>
             <Button onClick={() => setInviteOpen(true)} disabled={!canManage} title={!canManage ? (auth.hold_state !== 'none' ? t('on_hold') : auth.stale ? t('stale') : t('no_owner')) : undefined}>{t('invite')}</Button>
           </>
         }
       >
         {!canManage && <p className="helper">{auth.hold_state !== 'none' ? t('on_hold') : auth.stale ? t('stale') : t('no_owner')}</p>}
-        <p className="helper">{t('statement')}</p>
-        {delegates.length === 0 && <Empty icon="▭" title={t('empty')} action={<Button onClick={() => setInviteOpen(true)} disabled={!canManage}>{t('invite')}</Button>} />}
-        <div className="people-table">
-          <Table headers={[t('col_name'), t('col_role'), t('col_status'), t('col_rights'), t('col_since'), t('col_actions')]}>
-            {[...owners, ...delegates].map((p) => (
-              <tr key={p.id}>
-                <td><bdi>{nameOf(p)}</bdi>{p.name_differs && <div className="notice-tbc">{t('name_differs')}</div>}{p.dormant_flag && <div className="notice-tbc">{t('dormant')}</div>}</td>
-                <td>{t(`roles.${p.role}`, { ns: 'translation' })}</td>
-                <td><Chip tone={chipTone(p.chip)}>{t(`chip_${p.chip}`)}</Chip>{p.authority_label && <div><Chip tone="urgent">{t('suspended_authority_changed')}</Chip></div>}{p.kind === 'invitation' && p.chip === 'pending' && <div className="helper">{t('pending_waiting', { name: nameOf(p) })}</div>}</td>
-                <td>{rightsText(p)}</td>
-                <td>{formatDate(p.granted_at, lang)}</td>
-                <td>{p.role === 'delegate' && <RowActions p={p} canManage={canManage} onEdit={() => setEditing(p)} onRemove={() => setRemoving(p)} onAct={act} companyId={companyId} />}</td>
-              </tr>
-            ))}
-          </Table>
-        </div>
-        <div className="people-cards">
+        <p className="set-statement"><Icon name="info" size={16} /><span>{t('statement')}</span></p>
+        {delegates.length === 0 && <Empty icon="users" title={t('empty')} action={<Button onClick={() => setInviteOpen(true)} disabled={!canManage}>{t('invite')}</Button>} />}
+        <ul className="set-people" aria-label={t('people')}>
           {[...owners, ...delegates].map((p) => (
-            <div className="card" key={p.id}>
-              <div><strong><bdi>{nameOf(p)}</bdi></strong> · {t(`roles.${p.role}`, { ns: 'translation' })}</div>
-              <div><Chip tone={chipTone(p.chip)}>{t(`chip_${p.chip}`)}</Chip> {p.authority_label && <Chip tone="urgent">{t('suspended_authority_changed')}</Chip>} {p.name_differs && <span className="notice-tbc">{t('name_differs')}</span>}</div>
-              <div className="muted">{rightsText(p)} · {formatDate(p.granted_at, lang)}</div>
-              {p.dormant_flag && <div className="notice-tbc">{t('dormant')}</div>}
-              {p.role === 'delegate' && <RowActions p={p} canManage={canManage} onEdit={() => setEditing(p)} onRemove={() => setRemoving(p)} onAct={act} companyId={companyId} />}
-            </div>
+            <li key={p.id} className="set-person">
+              <span className={`set-avatar ${p.role === 'delegate' ? 'is-delegate' : ''}`} aria-hidden="true">{initial(nameOf(p))}</span>
+              <div className="set-person-main">
+                <div className="set-person-name">
+                  <strong><bdi>{nameOf(p)}</bdi></strong>
+                  <span className="set-role">{t(`roles.${p.role}`, { ns: 'translation' })}</span>
+                  <Chip tone={chipTone(p.chip)}>{t(`chip_${p.chip}`)}</Chip>
+                  {p.authority_label && <Chip tone="urgent">{t('suspended_authority_changed')}</Chip>}
+                </div>
+                <div className="set-person-meta">
+                  <span>{t('col_rights')}: <span className="set-rights">{rightsText(p)}</span></span>
+                  <span className="nowrap">{t('col_since')}: {formatDate(p.granted_at, lang)}</span>
+                </div>
+                {p.name_differs && <div className="notice-tbc">{t('name_differs')}</div>}
+                {p.dormant_flag && <div className="notice-tbc">{t('dormant')}</div>}
+                {p.kind === 'invitation' && p.chip === 'pending' && <div className="helper">{t('pending_waiting', { name: nameOf(p) })}</div>}
+              </div>
+              {p.role === 'delegate' && (
+                <div className="set-person-actions">
+                  <RowActions p={p} canManage={canManage} onEdit={() => setEditing(p)} onRemove={() => setRemoving(p)} onAct={act} companyId={companyId} />
+                </div>
+              )}
+            </li>
           ))}
-        </div>
+        </ul>
       </Panel>
       <RecentChanges changes={data.recent_changes} lang={lang} />
       <AddDelegateDialog key={String(inviteOpen)} open={inviteOpen} companyId={companyId} meta={data.toggles} onClose={() => setInviteOpen(false)} onDone={(msg) => { setNotice({ kind: 'success', text: msg }); load() }} />
@@ -173,9 +176,9 @@ export default function TeamTab({ companyId }: { companyId: string }) {
       {removing && (
         <Dialog open title={t('remove_title', { name: nameOf(removing) })} onClose={() => setRemoving(null)} labelledBy="remove-title">
           <p>{t('remove_body')}</p>
-          <div className="actions">
-            <Button variant="danger" onClick={() => { const p = removing; setRemoving(null); act(() => del(`/api/companies/${companyId}/delegates/${p.id}`), t('delegate_removed'), t('changes_not_saved')) }}>{t('remove')}</Button>
+          <div className="dialog-actions">
             <Button variant="secondary" onClick={() => setRemoving(null)}>{t('common.cancel', { ns: 'translation' })}</Button>
+            <Button variant="danger" onClick={() => { const p = removing; setRemoving(null); act(() => del(`/api/companies/${companyId}/delegates/${p.id}`), t('delegate_removed'), t('changes_not_saved')) }}>{t('remove')}</Button>
           </div>
         </Dialog>
       )}
@@ -188,19 +191,19 @@ function RowActions({ p, canManage, onEdit, onRemove, onAct, companyId }: { p: P
   if (p.kind === 'invitation') {
     if (p.status !== 'pending' && p.status !== 'expired') return null
     return (
-      <div className="actions">
-        <Button variant="secondary" disabled={!canManage} onClick={() => onAct(() => post(`/api/companies/${companyId}/delegates/invitations/${p.id}/resend`), t('invited_ok'), t('invite_failed'))}>{t('resend')}</Button>
+      <div className="set-row-actions">
+        <Button variant="secondary" className="btn-sm" disabled={!canManage} onClick={() => onAct(() => post(`/api/companies/${companyId}/delegates/invitations/${p.id}/resend`), t('invited_ok'), t('invite_failed'))}>{t('resend')}</Button>
         {p.status === 'pending' && <Button variant="link" disabled={!canManage} onClick={() => onAct(() => post(`/api/companies/${companyId}/delegates/invitations/${p.id}/withdraw`), t('delegate_removed'), t('changes_not_saved'))}>{t('withdraw')}</Button>}
       </div>
     )
   }
   if (p.chip === 'removed') return null
   return (
-    <div className="actions">
-      <Button variant="secondary" disabled={!canManage} onClick={onEdit}>{t('edit_rights')}</Button>
-      {p.status === 'active' && <Button variant="secondary" disabled={!canManage} onClick={() => onAct(() => post(`/api/companies/${companyId}/delegates/${p.id}/suspend`), t('rights_updated', { name: p.display_name || '' }), t('changes_not_saved'))}>{t('suspend')}</Button>}
-      {p.status === 'suspended' && <Button variant="secondary" disabled={!canManage} onClick={() => onAct(() => post(`/api/companies/${companyId}/delegates/${p.id}/reinstate`), t('rights_updated', { name: p.display_name || '' }), t('changes_not_saved'))}>{t('reinstate')}</Button>}
-      <Button variant="danger" disabled={!canManage} onClick={onRemove}>{t('remove')}</Button>
+    <div className="set-row-actions">
+      <Button variant="secondary" className="btn-sm" disabled={!canManage} onClick={onEdit}>{t('edit_rights')}</Button>
+      {p.status === 'active' && <Button variant="secondary" className="btn-sm" disabled={!canManage} onClick={() => onAct(() => post(`/api/companies/${companyId}/delegates/${p.id}/suspend`), t('rights_updated', { name: p.display_name || '' }), t('changes_not_saved'))}>{t('suspend')}</Button>}
+      {p.status === 'suspended' && <Button variant="secondary" className="btn-sm" disabled={!canManage} onClick={() => onAct(() => post(`/api/companies/${companyId}/delegates/${p.id}/reinstate`), t('rights_updated', { name: p.display_name || '' }), t('changes_not_saved'))}>{t('reinstate')}</Button>}
+      <Button variant="danger" className="btn-sm" disabled={!canManage} onClick={onRemove}>{t('remove')}</Button>
     </div>
   )
 }
@@ -229,14 +232,14 @@ function EditRightsDialog({ p, companyId, meta, onClose, onDone, onError, refusa
       {!confirm ? (
         <>
           <RightsToggles value={value} onChange={setValue} meta={meta} />
-          <div className="actions"><Button onClick={() => setConfirm(true)}>{t('common.next', { ns: 'translation' })}</Button><Button variant="secondary" onClick={onClose}>{t('common.cancel', { ns: 'translation' })}</Button></div>
+          <div className="dialog-actions"><Button variant="secondary" onClick={onClose}>{t('common.cancel', { ns: 'translation' })}</Button><Button onClick={() => setConfirm(true)}>{t('common.next', { ns: 'translation' })}</Button></div>
         </>
       ) : (
         <>
           <RightsSummary value={value} />
-          <div className="actions" aria-live="polite">
-            <Button onClick={save} disabled={saving}>{saving ? t('common.saving', { ns: 'translation' }) : t('confirm_rights')}</Button>
+          <div className="dialog-actions" aria-live="polite">
             <Button variant="secondary" onClick={() => setConfirm(false)} disabled={saving}>{t('common.back', { ns: 'translation' })}</Button>
+            <Button onClick={save} disabled={saving}>{saving ? t('common.saving', { ns: 'translation' }) : t('confirm_rights')}</Button>
           </div>
         </>
       )}
@@ -249,17 +252,26 @@ function RecentChanges({ changes, lang }: { changes: Change[]; lang: string }) {
   return (
     <Panel title={t('recent_changes')} id="recent-changes">
       {changes.length === 0 ? <p className="muted">{t('common.none', { ns: 'translation' })}</p> : (
-        <ul className="timeline">
+        <ol className="set-changes">
           {changes.map((c) => (
             <li key={c.id}>
-              <span className="muted">{formatDateTime(c.changed_at, lang)}</span>
-              <span>{c.change_type.replace(/_/g, ' ')} · <bdi>{c.delegate_label || '—'}</bdi>{c.changed_by_name && <span className="muted"> · <bdi>{c.changed_by_name}</bdi> ({c.changed_by_role && t(`roles.${c.changed_by_role}`, { ns: 'translation', defaultValue: c.changed_by_role })})</span>}</span>
+              <span className="set-change-dot" aria-hidden="true" />
+              <div className="set-change-main">
+                <span className="set-change-title">{t(`change.${c.change_type}`, { defaultValue: c.change_type.replace(/_/g, ' ') })} · <bdi>{c.delegate_label || '—'}</bdi></span>
+                {c.changed_by_name && <span className="set-change-by">{t('by', { name: '' })}<bdi>{c.changed_by_name}</bdi>{c.changed_by_role && <> ({t(`roles.${c.changed_by_role}`, { ns: 'translation', defaultValue: c.changed_by_role })})</>}</span>}
+              </div>
+              <time className="set-change-time" dateTime={c.changed_at}>{formatDateTime(c.changed_at, lang)}</time>
             </li>
           ))}
-        </ul>
+        </ol>
       )}
     </Panel>
   )
+}
+
+function initial(name: string) {
+  const ch = name.trim().charAt(0)
+  return ch && ch !== '—' ? ch.toUpperCase() : '?'
 }
 
 function groupQuarantine(items: Quarantined[]) {

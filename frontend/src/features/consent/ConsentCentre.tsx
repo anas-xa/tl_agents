@@ -2,13 +2,15 @@ import { useCallback, useEffect, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import { useNavigate } from 'react-router-dom'
 import { useAuth } from '../../app/auth'
-import { Button, Chip, Dialog, Empty, Field, Message, Panel, Skeleton } from '../../components/ui'
+import { Icon } from '../../components/Icon'
+import { Button, Chip, Dialog, Disclosure, Empty, Field, Message, PageHeader, Panel, Skeleton } from '../../components/ui'
 import { ApiError, get, post } from '../../lib/api'
 import { formatDate, formatDateTime } from '../../lib/format'
 import LinkStatusList, { useLinks } from './LinkStatusList'
 import TaxLinkCard from './TaxLinkCard'
 import { ConsentChip, MaskedAccount, ReceiptDialog, TimelineList, useLang } from './parts'
 import type { ConsentList, ConsentRow, ReceiptOut } from './types'
+import './consent.css'
 
 const LIVE = ['active', 'pending', 'paused']
 
@@ -76,14 +78,18 @@ export default function ConsentCentre() {
   const live = data?.consents.filter((c) => LIVE.includes(c.status)) ?? []
   const past = data?.consents.filter((c) => !LIVE.includes(c.status)) ?? []
   return (
-    <div className="page consent-centre">
-      <h1>{t('title')}</h1>
-      <Message kind="info">{actingAs}</Message>
+    <div className="consent-centre">
+      <PageHeader
+        title={t('title')}
+        subtitle={t('subtitle')}
+        meta={<span className="consent-acting"><Icon name="user" size={16} />{actingAs}</span>}
+        actions={rights?.can_grant ? <Button onClick={() => setGranting(true)}>{live.length ? t('add') : t('add_first')}</Button> : undefined}
+      />
       {notice && <Message kind={notice.kind}>{notice.text}</Message>}
       {!data && !error && (
         <div>
           <p className="muted" role="status" aria-live="polite">{t('loading')}</p>
-          <div className="grid">
+          <div className="consent-grid">
             {[0, 1, 2].map((i) => (
               <div className="card" key={i}><Skeleton rows={3} /></div>
             ))}
@@ -116,15 +122,15 @@ export default function ConsentCentre() {
           {rights.can_grant && rights.assurance_level !== rights.step_up_required && rights.assurance_level < rights.step_up_required && (
             <Message kind="warning">{t('step_up', { level: rights.step_up_required, current: rights.assurance_level })}</Message>
           )}
-          <div className="actions" style={{ marginBottom: 12 }}>
-            {rights.can_grant && <Button onClick={() => setGranting(true)}>{live.length ? t('add') : t('add_first')}</Button>}
-            <details>
-              <summary>{t('what_is')}</summary>
+          <div className="consent-section-head">
+            <h2>{t('your_consents')}</h2>
+            <Disclosure summary={t('what_is')} className="consent-what">
               <p>{t('what_is_body')}</p>
-            </details>
+            </Disclosure>
           </div>
           {data.consents.length === 0 ? (
             <Empty
+              icon="shield"
               title={t('empty_title')}
               body={t('empty_body')}
               action={rights.can_grant ? <Button onClick={() => setGranting(true)}>{t('add_first')}</Button> : rights.can_request ? <Button variant="secondary" onClick={() => askOwner('ledger_invoice_authorisation')}>{t('ask_owner')}</Button> : undefined}
@@ -132,15 +138,15 @@ export default function ConsentCentre() {
           ) : (
             <>
               {live.length === 0 && <p>{t('no_active')}</p>}
-              <div className="grid">
+              <div className="consent-grid">
                 {live.map((c) => (
                   <ConsentCard key={c.consent_id} c={c} data={data} onWithdraw={() => setWithdrawing(c)} onReceipt={() => showReceipt(c)} onCancel={() => act(c, 'cancel')} onResume={() => act(c, 'resume')} onAsk={() => askOwner(c.consent_type)} />
                 ))}
               </div>
               {past.length > 0 && (
                 <>
-                  <h2>{t('past')}</h2>
-                  <div className="grid">
+                  <div className="section-title"><h2>{t('past')}</h2></div>
+                  <div className="consent-grid">
                     {past.map((c) => (
                       <ConsentCard key={c.consent_id} c={c} data={data} onWithdraw={() => undefined} onReceipt={() => showReceipt(c, c.timeline ? 'withdrawal' : 'grant')} onAsk={() => askOwner(c.consent_type)} />
                     ))}
@@ -149,15 +155,22 @@ export default function ConsentCentre() {
               )}
             </>
           )}
-          <Panel title={t('retention_title')}>
-            <p>{t('microcopy')}</p>
-            <p className="muted">{t('retention_note')}</p>
-          </Panel>
+          <div className="consent-two">
           <BankSection />
+          <section className="consent-retention" aria-labelledby="consent-retention-title">
+            <span className="consent-retention-icon" aria-hidden="true"><Icon name="lock" size={18} /></span>
+            <div>
+              <h2 id="consent-retention-title">{t('retention_title')}</h2>
+              <p>{t('microcopy')}</p>
+              <p className="muted">{t('retention_note')}</p>
+            </div>
+          </section>
+          </div>
           <TaxLinkCard />
-          <Panel title={t('links_title')}>
+          <section id="data-links" aria-labelledby="data-links-title">
+            <div className="section-title consent-links-title"><h2 id="data-links-title">{t('links_title')}</h2></div>
             <LinkStatusList />
-          </Panel>
+          </section>
           {granting && <GrantDialog data={data} onClose={() => setGranting(false)} onDone={async (msg) => { setGranting(false); setNotice(msg); await load() }} />}
           {withdrawing && <WithdrawDialog c={withdrawing} onClose={() => setWithdrawing(null)} onDone={async (msg) => { setNotice(msg); await load() }} />}
           <ReceiptDialog receipt={receipt} onClose={() => setReceipt(null)} />
@@ -194,14 +207,14 @@ function ConsentCard({ c, data, onWithdraw, onReceipt, onCancel, onResume, onAsk
   const list = c.data_types.map((d) => t(`dt.${d}`)).join(', ')
   const excluded = c.data_types_not_read.map((d) => t(`dt.${d}`)).join(', ') || '-'
   return (
-    <article className="card" aria-labelledby={`c-${c.consent_id}`}>
-      <header style={{ display: 'flex', gap: 8, flexWrap: 'wrap', alignItems: 'center' }}>
+    <article className="card consent-card" aria-labelledby={`c-${c.consent_id}`}>
+      <header className="consent-card-head">
         <ConsentChip status={c.display_status} />
         {c.granted_by_removed_delegate && <Chip tone="attention" icon="!">{t('chip.removed_delegate')}</Chip>}
         {c.is_demo && <span className="tag">{t('demo')}</span>}
       </header>
-      <h3 id={`c-${c.consent_id}`} style={{ margin: '8px 0' }}>{t(`type.${c.consent_type}`)}</h3>
-      <dl className="kv">
+      <h3 id={`c-${c.consent_id}`} className="consent-card-title">{t(`type.${c.consent_type}`)}</h3>
+      <dl className="kv consent-kv">
         <dt>{t('source')}</dt>
         <dd><bdi dir="auto">{source}</bdi></dd>
         {c.accounts_masked.length > 0 && (
@@ -212,12 +225,15 @@ function ConsentCard({ c, data, onWithdraw, onReceipt, onCancel, onResume, onAsk
         )}
         <dt>{t('field_purpose')}</dt>
         <dd>{t(`purpose.${c.purpose}`)}</dd>
+        <dt>{t('reads')}</dt>
+        <dd>{list || '-'}</dd>
+        <dt>{t('not_reads')}</dt>
+        <dd>{excluded}</dd>
       </dl>
-      <p>{t('we_read', { list, excluded })}</p>
-      {c.consent_type === 'bank_data_open_finance' && <p className="muted">{t('bank_read_only')} {t('through_provider')}</p>}
-      {c.consent_type === 'tax_data' && <p className="muted">{t('tax.scope_note')}</p>}
-      {c.status === 'pending' && <p><strong>{t('pending_cause')}</strong></p>}
-      {c.status === 'active' && <p>{t('valid_until', { date: formatDateTime(c.expires_at, lang) })}</p>}
+      {c.consent_type === 'bank_data_open_finance' && <p className="consent-note">{t('bank_read_only')} {t('through_provider')}</p>}
+      {c.consent_type === 'tax_data' && <p className="consent-note">{t('tax.scope_note')}</p>}
+      {c.status === 'pending' && <p className="consent-state"><Icon name="clock" size={16} /><strong>{t('pending_cause')}</strong></p>}
+      {c.status === 'active' && <p className="consent-state"><Icon name="calendar" size={16} /><span>{t('valid_until', { date: formatDateTime(c.expires_at, lang) })}</span></p>}
       {c.status === 'active' && c.days_left !== null && c.days_left <= 30 && (
         <Message kind="warning">{t('ends_on', { what: source, date: formatDateTime(c.expires_at, lang) })}</Message>
       )}
@@ -231,10 +247,6 @@ function ConsentCard({ c, data, onWithdraw, onReceipt, onCancel, onResume, onAsk
       {withdrawn && c.timeline && <TimelineList timeline={c.timeline} source={source} />}
       {withdrawn && c.timeline?.provider_revocation_status === 'retrying' && <Message kind="info">{t('revocation_retrying', { bank: source })}</Message>}
       {withdrawn && c.timeline?.provider_revocation_status === 'failed' && <Message kind="warning">{t('revocation_failed', { bank: source })}</Message>}
-      <p className="muted" style={{ fontSize: '.85rem' }}>
-        {t('granted_by', { name: c.grantor_display_name ?? '-' })}
-        {c.delegation_id && <> · {t('delegation_id')}: <bdi dir="ltr">{c.delegation_id}</bdi></>}
-      </p>
       {c.granted_by_removed_delegate && canWithdraw && (
         <Message kind="warning">
           {t('removed_delegate_banner', { delegate: c.grantor_display_name ?? '-', date: '-' })}
@@ -244,19 +256,25 @@ function ConsentCard({ c, data, onWithdraw, onReceipt, onCancel, onResume, onAsk
           </div>
         </Message>
       )}
-      <div className="actions">
-        <Button variant="secondary" onClick={onReceipt}>{t('view_receipt')}</Button>
-        {c.status === 'pending' && canWithdraw && onCancel && <Button variant="secondary" onClick={onCancel}>{t('cancel_request')}</Button>}
-        {c.status === 'paused' && rights.can_grant && onResume && data.authority_rule !== 'unclear' && <Button onClick={onResume}>{t('resume')}</Button>}
-        {c.status === 'active' && canWithdraw && <Button variant="danger" onClick={onWithdraw}>{t('withdraw_consent')}</Button>}
-        {c.status === 'expired' && rights.can_grant && <Button variant="secondary">{t('review_renew')}</Button>}
-      </div>
-      {LIVE.includes(c.status) && !canWithdraw && (
-        <p className="muted">
-          {isTaxRemote ? t('only_owner_tax') : t('only_owner_withdraw')}{' '}
-          {rights.can_request && <Button variant="link" onClick={onAsk}>{rights.is_delegate ? t('request_consent') : t('ask_owner')}</Button>}
+      <footer className="consent-card-foot">
+        <p className="consent-granted">
+          {t('granted_by', { name: c.grantor_display_name ?? '-' })}
+          {c.delegation_id && <> · {t('delegation_id')}: <bdi dir="ltr">{c.delegation_id}</bdi></>}
         </p>
-      )}
+        {LIVE.includes(c.status) && !canWithdraw && (
+          <p className="muted consent-granted">
+            {isTaxRemote ? t('only_owner_tax') : t('only_owner_withdraw')}{' '}
+            {rights.can_request && <Button variant="link" onClick={onAsk}>{rights.is_delegate ? t('request_consent') : t('ask_owner')}</Button>}
+          </p>
+        )}
+        <div className="consent-card-actions">
+          <Button variant="secondary" className="btn-sm" onClick={onReceipt}>{t('view_receipt')}</Button>
+          {c.status === 'pending' && canWithdraw && onCancel && <Button variant="secondary" className="btn-sm" onClick={onCancel}>{t('cancel_request')}</Button>}
+          {c.status === 'paused' && rights.can_grant && onResume && data.authority_rule !== 'unclear' && <Button className="btn-sm" onClick={onResume}>{t('resume')}</Button>}
+          {c.status === 'active' && canWithdraw && <Button variant="danger" className="btn-sm" onClick={onWithdraw}>{t('withdraw_consent')}</Button>}
+          {c.status === 'expired' && rights.can_grant && <Button variant="secondary" className="btn-sm">{t('review_renew')}</Button>}
+        </div>
+      </footer>
     </article>
   )
 }
@@ -478,24 +496,35 @@ function BankSection() {
     }
   }
   const anyAvailable = data.banks.some((b) => b.availability === 'available')
+  const availableCount = data.banks.filter((b) => b.availability === 'available').length
   const canManage = can('links.manage', companyId) && !data.remote_owner_read_only
   return (
-    <Panel title={t('bank_title')}>
-      <p>{t('bank_empty')}</p>
-      {!anyAvailable && <p className="muted">{t('no_banks')} {t('bank_nya')}</p>}
+    <Panel title={t('bank_title')} className="consent-bank" actions={can('uploads.manage', companyId) ? <Button variant="secondary" className="btn-sm" onClick={() => nav('/settings?tab=data-links')}><Icon name="upload" size={16} />{t('upload_statements')}</Button> : undefined}>
+      <p>{t('bank_empty')}{!anyAvailable && <span className="muted"> {t('bank_nya')}</span>}</p>
       {saved && <Message kind="success">{t('notify_saved')}</Message>}
-      <ul style={{ listStyle: 'none', padding: 0 }}>
-        {data.banks.map((b) => (
-          <li key={b.bank_id} style={{ display: 'flex', gap: 8, alignItems: 'center', flexWrap: 'wrap', padding: '6px 0', borderBottom: '1px solid var(--border)' }}>
-            <Chip tone={b.availability === 'available' ? 'ok' : 'neutral'} icon={b.availability === 'available' ? '✓' : '◌'}>{t(`bank_chip.${b.availability}`)}</Chip>
-            <bdi>{lang === 'ar' ? b.name_ar : b.name_en}</bdi>
-            {b.demo && <span className="tag">{t('demo')}</span>}
-            {b.availability !== 'available' && <Button variant="link" onClick={() => notify(b.bank_id)}>{t('notify_me')}</Button>}
-          </li>
-        ))}
-      </ul>
-      {!canManage && <p className="muted">{t('only_owner_bank')}</p>}
-      {can('uploads.manage', companyId) && <Button variant="secondary" onClick={() => nav('/settings?tab=data-links')}>{t('upload_statements')}</Button>}
+      <Disclosure className="consent-bank-disclosure" summary={<><Icon name="building" size={16} /> {anyAvailable ? t('banks_summary_some', { n: data.banks.length, m: availableCount }) : t('banks_summary_none', { n: data.banks.length })} <span className="consent-bank-more">· {t('show_banks')}</span></>}>
+        <ul className="consent-bank-list">
+          {data.banks.map((b) => (
+            <li key={b.bank_id}>
+              <span className="consent-bank-name">
+                <bdi>{lang === 'ar' ? b.name_ar : b.name_en}</bdi>
+                <span className="consent-bank-meta">
+                  <Chip tone={b.availability === 'available' ? 'ok' : 'neutral'} icon={b.availability === 'available' ? '✓' : '◌'}>{t(`bank_chip.${b.availability}`)}</Chip>
+                  {b.demo && <span className="tag">{t('demo')}</span>}
+                </span>
+              </span>
+              {b.availability !== 'available' && (
+                <Button variant="secondary" className="btn-sm" onClick={() => notify(b.bank_id)}>
+                  {saved === b.bank_id && <Icon name="check" size={16} />}
+                  <span>{t('notify_me')}</span>
+                  <span className="visually-hidden"> <bdi>{lang === 'ar' ? b.name_ar : b.name_en}</bdi></span>
+                </Button>
+              )}
+            </li>
+          ))}
+        </ul>
+      </Disclosure>
+      {!canManage && <p className="muted consent-bank-owner">{t('only_owner_bank')}</p>}
     </Panel>
   )
 }

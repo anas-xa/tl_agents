@@ -30,11 +30,14 @@ export default function ProfileTab() {
     <div>
       {msg && <Message kind={msg.kind}>{msg.text}</Message>}
       <Panel title={t('tab_profile')} id="profile">
-        <dl className="kv">
-          <dt>{t('profile_identity')}</dt><dd><bdi>{me.display_name}</bdi></dd>
-          <dt>{t('profile_level')}</dt><dd><bdi dir="ltr">{me.assurance_level}</bdi></dd>
-        </dl>
-        <form onSubmit={save}>
+        <div className="set-identity">
+          <span className="set-avatar set-avatar-lg" aria-hidden="true">{me.display_name.trim().charAt(0).toUpperCase()}</span>
+          <dl className="kv">
+            <dt>{t('profile_identity')}</dt><dd><strong><bdi>{me.display_name}</bdi></strong></dd>
+            <dt>{t('profile_level')}</dt><dd><bdi dir="ltr" className="ident">{me.assurance_level}</bdi></dd>
+          </dl>
+        </div>
+        <form onSubmit={save} className="set-form-grid">
           <Field label={t('profile_language')} id="pref-lang">
             <select id="pref-lang" value={me.language} onChange={(e) => setLanguage(e.target.value as 'ar' | 'en')}>
               <option value="ar">العربية</option>
@@ -46,7 +49,7 @@ export default function ProfileTab() {
           </Field>
           <Field label={t('profile_email')} id="pref-email"><input id="pref-email" type="email" dir="ltr" value={email} onChange={(e) => setEmail(e.target.value)} /></Field>
           <Field label={t('profile_mobile')} id="pref-mobile"><input id="pref-mobile" type="tel" dir="ltr" value={mobile} onChange={(e) => setMobile(e.target.value)} /></Field>
-          <Button type="submit" disabled={saving}>{saving ? t('common.saving', { ns: 'translation' }) : t('common.save', { ns: 'translation' })}</Button>
+          <div className="set-form-actions"><Button type="submit" disabled={saving}>{saving ? t('common.saving', { ns: 'translation' }) : t('common.save', { ns: 'translation' })}</Button></div>
         </form>
       </Panel>
     </div>

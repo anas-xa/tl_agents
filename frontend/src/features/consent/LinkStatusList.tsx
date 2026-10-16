@@ -2,11 +2,13 @@ import { useCallback, useEffect, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import { useNavigate } from 'react-router-dom'
 import { useAuth } from '../../app/auth'
+import { Icon } from '../../components/Icon'
 import { Button, Chip, Empty, Message, Skeleton } from '../../components/ui'
 import { ApiError, get } from '../../lib/api'
 import { formatDate, formatDateTime } from '../../lib/format'
 import { LinkBadge, MaskedAccount, linkLine, useLang } from './parts'
 import type { LinkRow, LinksOut } from './types'
+import './consent.css'
 
 export function useLinks(companyId: string | null) {
   const lang = useLang()
@@ -67,30 +69,34 @@ export default function LinkStatusList({ compact = false }: { compact?: boolean 
   return (
     <div className="link-status">
       {!compact && (
-        <div className="actions" role="group" aria-label={t('links_title')}>
-          <Button variant={filter === 'all' ? 'primary' : 'secondary'} aria-pressed={filter === 'all'} onClick={() => setFilter('all')}>{t('filter_all')}</Button>
-          <Button variant={filter === 'attention' ? 'primary' : 'secondary'} aria-pressed={filter === 'attention'} onClick={() => setFilter('attention')}>{t('filter_attention')}</Button>
+        <div className="link-filter" role="group" aria-label={t('links_title')}>
+          <button type="button" aria-pressed={filter === 'all'} onClick={() => setFilter('all')}>{t('filter_all')}</button>
+          <button type="button" aria-pressed={filter === 'attention'} onClick={() => setFilter('attention')}>{t('filter_attention')}{data.needs_attention.length > 0 && <span className="tab-badge">{data.needs_attention.length}</span>}</button>
         </div>
       )}
-      {visibleRows.length === 0 ? (
-        <Empty title={t('links_empty')} body={t('links_empty_note')} action={<Button onClick={() => nav('/consent')}>{t('open_centre')}</Button>} />
-      ) : (
-        <ul className="link-rows" style={{ listStyle: 'none', padding: 0, margin: 0 }}>
-          {visibleRows.map((r) => (
-            <LinkRowItem key={r.link_id} row={r} lang={lang} canAct={canAct} go={go} />
-          ))}
-        </ul>
-      )}
-      <div className="card" style={{ marginTop: 12 }}>
-        <strong>{t('manual_line')}</strong>{' '}
-        <Chip tone="draft" icon="✎">{t('manual_chip')}</Chip>{' '}
-        {data.manual_uploads_line.badge === 'update_due' && <Chip tone="attention" icon="◷">{t('update_due')}</Chip>}
-        <p className="muted" style={{ margin: '4px 0 0' }}>
-          {data.manual_uploads_line.count > 0 && data.manual_uploads_line.latest_statement_end
-            ? t('manual_line_body', { count: data.manual_uploads_line.count, date: formatDate(data.manual_uploads_line.latest_statement_end, lang) })
-            : t('history_empty')}
-        </p>
-      </div>
+      {visibleRows.length === 0 && <Empty title={t('links_empty')} body={t('links_empty_note')} action={<Button onClick={() => nav('/consent')}>{t('open_centre')}</Button>} />}
+      <ul className="link-rows">
+        {visibleRows.map((r) => (
+          <LinkRowItem key={r.link_id} row={r} lang={lang} canAct={canAct} go={go} />
+        ))}
+        <li className="link-row link-manual">
+          <div className="link-row-head">
+            <div className="link-row-title">
+              <span className="link-manual-icon" aria-hidden="true"><Icon name="upload" size={16} /></span>
+              <strong>{t('manual_line')}</strong>
+            </div>
+            <div className="link-row-badge">
+              <Chip tone="draft" icon="✎">{t('manual_chip')}</Chip>
+            </div>
+          </div>
+          {data.manual_uploads_line.badge === 'update_due' && <div><Chip tone="attention" icon="◷">{t('update_due')}</Chip></div>}
+          <p className="link-row-line">
+            {data.manual_uploads_line.count > 0 && data.manual_uploads_line.latest_statement_end
+              ? t('manual_line_body', { count: data.manual_uploads_line.count, date: formatDate(data.manual_uploads_line.latest_statement_end, lang) })
+              : t('history_empty')}
+          </p>
+        </li>
+      </ul>
     </div>
   )
 }
@@ -98,29 +104,33 @@ export default function LinkStatusList({ compact = false }: { compact?: boolean 
 function LinkRowItem({ row, lang, canAct, go }: { row: LinkRow; lang: string; canAct: (s: string) => boolean; go: (s: string) => void }) {
   const { t } = useTranslation('consent')
   return (
-    <li className="card" style={{ marginBottom: 8, display: 'flex', gap: 12, flexWrap: 'wrap', alignItems: 'flex-start' }}>
-      <LinkBadge badge={row.badge} />
-      <div style={{ flex: '1 1 260px' }}>
-        <div>
+    <li className="link-row">
+      <div className="link-row-head">
+        <div className="link-row-title">
           <strong>
             <bdi>{row.source_name}</bdi>
-          </strong>{' '}
-          <span className="muted">· {t(`source_type.${row.source_type}`)}</span> <MaskedAccount value={row.masked_account} />
-          {row.is_demo && <span className="tag"> {t('demo')}</span>}
+          </strong>
+          <span className="muted">{t(`source_type.${row.source_type}`)}</span> <MaskedAccount value={row.masked_account} />
+          {row.is_demo && <span className="tag">{t('demo')}</span>}
         </div>
-        <div>{linkLine(t, row, lang)}</div>
-        {row.still_connecting && <div role="status">{t('line.still_connecting')}</div>}
-        <div className="muted" style={{ fontSize: '.9rem' }}>
-          {t('last_refresh')}: {row.last_successful_refresh_at ? formatDateTime(row.last_successful_refresh_at, lang) : t('never')}
+        <div className="link-row-badge"><LinkBadge badge={row.badge} /></div>
+      </div>
+      <div className="link-row-main">
+        <div className="link-row-line">{linkLine(t, row, lang)}</div>
+        {row.still_connecting && <div role="status" className="link-row-line">{t('line.still_connecting')}</div>}
+        <div className="link-row-meta">
+          <span className="nowrap">{t('last_refresh')}: {row.last_successful_refresh_at ? formatDateTime(row.last_successful_refresh_at, lang) : t('never')}</span>
+          {row.manual_entries.map((m) => (
+            <span key={m.tax_type}>
+              {t('entry_age', { date: m.entered_at ? formatDate(m.entered_at.slice(0, 10), lang) : '' })} ({m.tax_type === 'vat' ? t('tax.vat') : t('tax.ct')})
+            </span>
+          ))}
         </div>
-        {row.manual_entries.map((m) => (
-          <div key={m.tax_type} className="muted" style={{ fontSize: '.9rem' }}>
-            {t('entry_age', { date: m.entered_at ? formatDate(m.entered_at.slice(0, 10), lang) : '' })} ({m.tax_type === 'vat' ? t('tax.vat') : t('tax.ct')})
-          </div>
-        ))}
       </div>
       {row.next_step && canAct(row.next_step) && (
-        <Button variant="secondary" onClick={() => go(row.next_step!)}>{t(`btn.${row.next_step}`)}</Button>
+        <div className="link-row-action">
+          <Button variant="secondary" className="btn-sm" onClick={() => go(row.next_step!)}>{t(`btn.${row.next_step}`)}</Button>
+        </div>
       )}
     </li>
   )

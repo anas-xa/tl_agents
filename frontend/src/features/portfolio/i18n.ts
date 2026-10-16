@@ -19,6 +19,9 @@ const en = {
   withheld: 'Some obligations are not shared with you.',
   undated: 'Date not confirmed',
   only_owner_approve: 'Only the owner can approve',
+  search: 'Find a company',
+  no_match: 'No company matches your search.',
+  count: 'Companies: {{count}}',
 }
 const ar: typeof en = {
   title: 'شركاتي',
@@ -38,6 +41,9 @@ const ar: typeof en = {
   withheld: 'بعض الالتزامات غير مشاركة معك.',
   undated: 'التاريخ غير مؤكد',
   only_owner_approve: 'يمكن للمالك فقط الموافقة',
+  search: 'ابحث عن شركة',
+  no_match: 'لا توجد شركة تطابق بحثك.',
+  count: 'عدد الشركات: {{count}}',
 }
 i18n.addResourceBundle('en', 'portfolio', en, true, true)
 i18n.addResourceBundle('ar', 'portfolio', ar, true, true)

@@ -11,6 +11,8 @@ const en = {
   example: 'example',
   tbc: 'to be confirmed with DET',
   demo: 'Demo data',
+  k12: { progress: '{{done}} of {{total}} linked' },
+  complaint_status: { received: 'Received', in_review: 'In review', replied: 'Replied', resolved: 'Resolved', refunded: 'Refunded', rejected: 'Rejected' },
   welcome: {
     title: 'Welcome to Smart Licence Services',
     intro: 'Here is what the subscription includes, what it costs as an example, and your choices. Your licence issuance or renewal does not depend on this subscription.',
@@ -32,9 +34,12 @@ const en = {
     terms_version: 'Terms version {{v}}',
     notice_version: 'Notice version {{v}}',
     go_subscription: 'Open my subscription',
+    choices: 'Your choices',
   },
   screen: {
     title: 'Subscription',
+    subtitle: 'Your smart services subscription for each licence: the fee line, payment status and your requests.',
+    payment: 'Payment',
     loading: 'Loading subscription',
     still_loading: 'Still loading. Your connection may be slow.',
     try_again: 'Try again',
@@ -286,6 +291,8 @@ const ar: typeof en = {
   example: 'مثال',
   tbc: 'رهن التأكيد مع الدائرة',
   demo: 'بيانات تجريبية',
+  k12: { progress: '{{done}} من {{total}} مرتبطة' },
+  complaint_status: { received: 'مستلمة', in_review: 'قيد المراجعة', replied: 'تم الرد', resolved: 'تمت المعالجة', refunded: 'تم الاسترداد', rejected: 'مرفوضة' },
   welcome: {
     title: 'مرحبًا بك في خدمات الرخصة الذكية',
     intro: 'إليك ما يشمله الاشتراك، وتكلفته كمثال، وخياراتك. لا يعتمد إصدار رخصتك أو تجديدها على هذا الاشتراك.',
@@ -307,9 +314,12 @@ const ar: typeof en = {
     terms_version: 'إصدار الشروط {{v}}',
     notice_version: 'إصدار الإشعار {{v}}',
     go_subscription: 'فتح اشتراكي',
+    choices: 'اختياراتك',
   },
   screen: {
     title: 'الاشتراك',
+    subtitle: 'اشتراكك في الخدمات الذكية لكل رخصة: بند الرسوم، وحالة الدفع، وطلباتك.',
+    payment: 'الدفع',
     loading: 'جارٍ تحميل الاشتراك',
     still_loading: 'لا يزال التحميل جاريًا. قد يكون اتصالك بطيئًا.',
     try_again: 'حاول مرة أخرى',

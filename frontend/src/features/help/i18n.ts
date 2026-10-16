@@ -3,6 +3,8 @@ import i18n from '../../i18n'
 /** SC10 Help and human escalation (E8-S1/S2/S3). Spec strings verbatim; Arabic without a source value is a draft pending native review. */
 const en = {
   title: 'Help and human escalation',
+  subtitle: 'Ask about your tax or compliance duties, follow your cases, or ask a licensed person.',
+  try_examples: 'Try one of these:',
   information_not_advice: 'This is general information, not legal or tax advice.',
   no_route: 'A licensed professional can review this matter. We will show the expected response time when a route is available.',
   states: {
@@ -88,6 +90,8 @@ const en = {
 
 const ar = {
   title: 'المساعدة والتصعيد البشري',
+  subtitle: 'اسأل عن التزاماتك الضريبية أو التزامات الامتثال، وتابع حالاتك، أو اطلب مساعدة مختص مرخّص.',
+  try_examples: 'جرّب أحد هذه الأسئلة:',
   information_not_advice: 'هذه معلومات عامة وليست استشارة قانونية أو ضريبية.',
   no_route: 'يمكن لمختص مرخّص مراجعة هذه المسألة. سنعرض مدة الرد المتوقعة عند توفر المسار.',
   states: {

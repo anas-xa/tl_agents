@@ -3,6 +3,11 @@ import i18n from 'i18next'
 /** SC11 strings (E1-S2 §6 and E1-S6 §6 verbatim). Arabic is a draft pending native review. */
 const en = {
   title: 'Team, delegates and settings',
+  subtitle: 'Who can act for your company, your profile and preferences, reminders and data sources.',
+  people_count: '{{n}} people',
+  you: 'You',
+  change: { accepted: 'Invitation accepted', authority_suspended: 'Suspended: authority changed', dormancy_flagged: 'Flagged as dormant', expired: 'Invitation expired', invited: 'Invited', quarantine_decision: 'Decision on held drafts', reinstated: 'Reinstated', removed: 'Removed', resent: 'Invitation resent', rights_changed: 'Rights changed', suspended: 'Suspended', withdrawn: 'Invitation withdrawn' },
+  by: 'by {{name}}',
   tab_team: 'Team and delegates',
   tab_profile: 'Profile and preferences',
   people: 'People with access',
@@ -95,6 +100,11 @@ const en = {
 
 const ar: typeof en = {
   title: 'الفريق والمفوَّضون والإعدادات',
+  subtitle: 'من يمكنه التصرف نيابة عن شركتك، وملفك الشخصي وتفضيلاتك، والتذكيرات، ومصادر البيانات.',
+  people_count: '{{n}} أشخاص',
+  you: 'أنت',
+  change: { accepted: 'قُبلت الدعوة', authority_suspended: 'موقوف: تغيّرت الصلاحية', dormancy_flagged: 'وُسم بعدم النشاط', expired: 'انتهت صلاحية الدعوة', invited: 'أُرسلت الدعوة', quarantine_decision: 'قرار بشأن المسودات المعلّقة', reinstated: 'أُعيد تفعيله', removed: 'أُزيل', resent: 'أُعيد إرسال الدعوة', rights_changed: 'تغيّرت الصلاحيات', suspended: 'موقوف', withdrawn: 'سُحبت الدعوة' },
+  by: 'بواسطة {{name}}',
   tab_team: 'الفريق والمفوَّضون',
   tab_profile: 'الملف الشخصي والتفضيلات',
   people: 'الأشخاص الذين لديهم صلاحية الوصول',

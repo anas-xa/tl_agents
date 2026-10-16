@@ -6,6 +6,14 @@ import i18n from 'i18next'
  */
 const en = {
   title: 'Consent Centre',
+  subtitle: 'What we may read, from which source, for what purpose and until when.',
+  your_consents: 'Your consents',
+  reads: 'Reads',
+  not_reads: 'Does not read',
+  banks_summary_none: '{{n}} banks listed, none available to link yet',
+  banks_summary_some: '{{n}} banks listed, {{m}} available to link',
+  show_banks: 'Show banks and ask to be notified',
+  link_sources: 'Sources and refresh',
   panel: 'Consents',
   tab_data_links: 'Data links',
   demo: 'Demo data',
@@ -286,6 +294,14 @@ type Dict = typeof en
 
 const ar: Dict = {
   title: 'مركز الموافقات',
+  subtitle: 'ما البيانات التي يجوز لنا قراءتها، ومن أي مصدر، ولأي غرض، وحتى متى.',
+  your_consents: 'موافقاتك',
+  reads: 'نقرأ',
+  not_reads: 'لا نقرأ',
+  banks_summary_none: 'البنوك المدرجة: {{n}}، ولا يتوفر أي منها للربط بعد',
+  banks_summary_some: 'البنوك المدرجة: {{n}}، منها {{m}} متاحة للربط',
+  show_banks: 'عرض البنوك وطلب الإشعار',
+  link_sources: 'المصادر والتحديث',
   panel: 'الموافقات',
   tab_data_links: 'روابط البيانات',
   demo: 'بيانات تجريبية',

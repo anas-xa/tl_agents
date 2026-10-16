@@ -52,11 +52,7 @@ export default function TaxLinkCard() {
   const vat = data.profiles.find((p) => p.tax_type === 'vat')
   const ct = data.profiles.find((p) => p.tax_type === 'corporate_tax')
   return (
-    <Panel title={t('tax.title')} id="tax-link">
-      <p>
-        <Chip tone={tone} icon={icon}>{t(key)}</Chip>
-        {data.demo_data && <span className="tag"> {t('demo')}</span>}
-      </p>
+    <Panel title={t('tax.title')} id="tax-link" className="consent-tax" actions={<span className="consent-tax-status"><Chip tone={tone} icon={icon}>{t(key)}</Chip>{data.demo_data && <span className="tag">{t('demo')}</span>}</span>}>
       <div aria-busy={data.status === 'loading'}>
         {data.status === 'not_available' && <p>{t('tax.not_available_body')}</p>}
         {data.status === 'manual_unverified' && <p>{t('tax.not_available_body')}</p>}
@@ -69,7 +65,7 @@ export default function TaxLinkCard() {
         {data.status === 'mismatch' && <Message kind="warning">{t('tax.mismatch_body', { a: '-', b: '-' })}</Message>}
       </div>
       <ValueRows vat={vat} ct={ct} old={old} lang={lang} />
-      <p className="muted">{t('tax.scope_note')} {t('tax.never_credentials')}</p>
+      <p className="consent-note">{t('tax.scope_note')} {t('tax.never_credentials')}</p>
       {data.remote_owner && (
         <Message kind="info">
           {t('remote_tax')} <span className="muted">({t('remote_tax_status')})</span>
@@ -77,13 +73,13 @@ export default function TaxLinkCard() {
       )}
       {isDelegate && !canEnter && <p className="muted">{t('tax.read_only_note')}</p>}
       {isDelegate && <p className="muted">{t('q72_delegate')}</p>}
-      <div className="actions">
+      <div className="actions consent-tax-actions">
         {!isDelegate && !data.remote_owner && (
           <>
             <Button aria-disabled={!data.switch_on} aria-describedby="start-link-reason" onClick={(e) => !data.switch_on && e.preventDefault()} variant="secondary">
               {t('tax.start_link')}
             </Button>
-            {!data.switch_on && <span id="start-link-reason" className="muted">{t('tax.not_available_body')}</span>}
+            {!data.switch_on && <span id="start-link-reason" className={['not_available', 'manual_unverified'].includes(data.status) ? 'visually-hidden' : 'muted'}>{t('tax.not_available_body')}</span>}
           </>
         )}
         {data.status === 'error' && (
@@ -107,43 +103,49 @@ function ValueRows({ vat, ct, old, lang }: { vat?: TaxProfile; ct?: TaxProfile; 
   const p = vat ?? ct
   const source = (x?: TaxProfile) =>
     x ? (
-      <span className="muted" style={{ fontSize: '.85rem' }}>
-        {' '}
-        · {x.source === 'fta_live' ? t('tax.from_authority') : t('tax.by_hand')} · <Chip tone={x.source === 'fta_live' ? 'ok' : 'draft'} icon={x.source === 'fta_live' ? '✓' : '✎'}>{x.source === 'fta_live' ? t('tax.verified_source') : t('tax.unverified')}</Chip>{' '}
-        {x.source !== 'fta_live' && t('tax.not_confirmed')} · {t('tax.as_provided', { date: formatDateTime(x.as_of, lang) })}
-        {old && <> · {t('tax.old_value')}</>}
-        {x.is_demo && <span className="tag"> {t('demo')}</span>}
+      <span className="consent-src">
+        <Chip tone={x.source === 'fta_live' ? 'ok' : 'draft'} icon={x.source === 'fta_live' ? '✓' : '✎'}>{x.source === 'fta_live' ? t('tax.verified_source') : t('tax.unverified')}</Chip>
+        {x.is_demo && <span className="tag">{t('demo')}</span>}
+        <span>
+          {x.source === 'fta_live' ? t('tax.from_authority') : t('tax.by_hand')}
+          {x.source !== 'fta_live' && <> · {t('tax.not_confirmed')}</>} · {t('tax.as_provided', { date: formatDateTime(x.as_of, lang) })}
+          {old && <> · {t('tax.old_value')}</>}
+        </span>
       </span>
     ) : null
   const val = (v: string | null | undefined) => (v ? <bdi dir="ltr" className="ident">{v}</bdi> : <span className="muted">— {t('tax.no_value')}</span>)
   const nextDue = vat?.due_dates?.[0]
   const sbr = ct?.small_business_relief?.[0]
-  const manualStyle = p && p.source !== 'fta_live' ? { border: '1px dashed var(--border)', padding: 8, borderRadius: 8 } : undefined
+  const manual = !!p && p.source !== 'fta_live'
   return (
-    <dl className="kv" style={manualStyle}>
-      <dt>{t('tax.row.vat_trn')}</dt>
-      <dd>{val(vat?.trn)}{source(vat)}</dd>
-      <dt>{t('tax.row.ct_trn')}</dt>
-      <dd>{val(ct?.trn)}{source(ct)}</dd>
-      <dt>{t('tax.row.registration')}</dt>
-      <dd>{vat?.registration_status ? t(`tax.reg.${vat.registration_status}`, { defaultValue: vat.registration_status }) : val(null)}</dd>
-      <dt>{t('tax.row.filing')}</dt>
-      <dd>{vat?.filing_status ?? val(null)}</dd>
-      <dt>{t('tax.row.frequency')}</dt>
-      <dd>{vat?.filing_frequency ? t(`tax.freq.${vat.filing_frequency}`) : val(null)}</dd>
-      <dt>{t('tax.row.due')}</dt>
-      <dd>
-        {nextDue ? (
-          <>
-            {formatDate(nextDue.due_date, lang)} <span className="muted">({t(`tax.due_source.${nextDue.source}`)}{p && p.source !== 'fta_live' ? `; ${t('tax.based_unverified')}` : ''})</span>
-          </>
-        ) : (
-          val(null)
-        )}
-      </dd>
-      <dt>{t('tax.row.sbr')}</dt>
-      <dd>{sbr ? (sbr.indicator === 'unknown' ? t('tax.sbr_unknown') : sbr.indicator) : val(null)}</dd>
-    </dl>
+    <div className={`consent-tax-grid ${manual ? 'consent-tax-manual' : ''}`}>
+      <dl className="kv consent-tax-kv">
+        <dt>{t('tax.row.vat_trn')}</dt>
+        <dd className="consent-trn">{val(vat?.trn)}{source(vat)}</dd>
+        <dt>{t('tax.row.ct_trn')}</dt>
+        <dd className="consent-trn">{val(ct?.trn)}{source(ct)}</dd>
+      </dl>
+      <dl className="kv consent-tax-kv">
+        <dt>{t('tax.row.registration')}</dt>
+        <dd>{vat?.registration_status ? t(`tax.reg.${vat.registration_status}`, { defaultValue: vat.registration_status }) : val(null)}</dd>
+        <dt>{t('tax.row.filing')}</dt>
+        <dd>{vat?.filing_status ?? val(null)}</dd>
+        <dt>{t('tax.row.frequency')}</dt>
+        <dd>{vat?.filing_frequency ? t(`tax.freq.${vat.filing_frequency}`) : val(null)}</dd>
+        <dt>{t('tax.row.due')}</dt>
+        <dd>
+          {nextDue ? (
+            <>
+              <span className="nowrap">{formatDate(nextDue.due_date, lang)}</span> <span className="muted">({t(`tax.due_source.${nextDue.source}`)}{p && p.source !== 'fta_live' ? `; ${t('tax.based_unverified')}` : ''})</span>
+            </>
+          ) : (
+            val(null)
+          )}
+        </dd>
+        <dt>{t('tax.row.sbr')}</dt>
+        <dd>{sbr ? (sbr.indicator === 'unknown' ? t('tax.sbr_unknown') : sbr.indicator) : val(null)}</dd>
+      </dl>
+    </div>
   )
 }
 

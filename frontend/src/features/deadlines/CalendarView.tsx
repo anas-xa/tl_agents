@@ -1,8 +1,9 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
+import { Icon } from '../../components/Icon'
 import { Button, Chip } from '../../components/ui'
 import { formatDate } from '../../lib/format'
-import { useBi, useFetch, type Obligation } from './lib'
+import { tierTone, useBi, useFetch, type Obligation } from './lib'
 import { DaysBadge } from './parts'
 
 interface MonthCal { year: number; month: number; weekend_days: number[]; holidays: { jurisdiction: string; start_date: string; end_date: string; name: { en: string; ar: string }; list_version: string | null; list_version_date: string | null }[] }
@@ -80,16 +81,16 @@ export default function CalendarView({ rows, companyId, onOpen }: { rows: Obliga
   const openRows = openDay ? byDay[openDay] ?? [] : []
   return (
     <div>
-      <div className="actions" style={{ alignItems: 'center', marginBottom: 8 }}>
-        <Button variant="secondary" onClick={() => shiftMonth(-1)} aria-label={t('prev_month')}>‹</Button>
-        <h2 style={{ margin: 0 }} aria-live="polite">{monthName} {ym.y}</h2>
-        <Button variant="secondary" onClick={() => shiftMonth(1)} aria-label={t('next_month')}>›</Button>
+      <div className="dln-cal-head">
+        <Button variant="secondary" className="btn-sm dln-cal-nav" onClick={() => shiftMonth(-1)} aria-label={t('prev_month')}><Icon name="chevron-start" size={18} className="flip-rtl" /></Button>
+        <h2 aria-live="polite">{monthName} {ym.y}</h2>
+        <Button variant="secondary" className="btn-sm dln-cal-nav" onClick={() => shiftMonth(1)} aria-label={t('next_month')}><Icon name="chevron-end" size={18} className="flip-rtl" /></Button>
         <Button variant="link" onClick={() => setYm({ y: today.getFullYear(), m: today.getMonth() })}>{t('today')}</Button>
       </div>
       <p className="helper">{t('calendar_hint')}</p>
       {listVersion?.list_version && <p className="helper">{t('public_holiday')} · {t('list_version', { v: listVersion.list_version, date: formatDate(listVersion.list_version_date, i18n.language) })}</p>}
-      <div ref={gridRef} role="grid" aria-label={`${monthName} ${ym.y}`} onKeyDown={onKey} style={{ display: 'grid', gridTemplateColumns: 'repeat(7, minmax(0, 1fr))', gap: 4 }}>
-        {weekdays.map((w) => <div key={w} role="columnheader" className="helper" style={{ textAlign: 'center' }}>{w}</div>)}
+      <div ref={gridRef} role="grid" aria-label={`${monthName} ${ym.y}`} onKeyDown={onKey} className="dln-cal-grid">
+        {weekdays.map((w) => <div key={w} role="columnheader" className="dln-cal-wd">{w}</div>)}
         {cells.map((d, i) => {
           if (d === null) return <div key={`b${i}`} role="gridcell" aria-hidden="true" />
           const date = new Date(ym.y, ym.m, d)
@@ -99,20 +100,20 @@ export default function CalendarView({ rows, companyId, onOpen }: { rows: Obliga
           const hol = holidays[key]
           const label = `${formatDate(key, i18n.language)}${isWeekend ? `, ${t('weekend_label')}` : ''}${hol ? `, ${t('public_holiday')}: ${hol.join(', ')}` : ''}${items.length ? `, ${t('day_items', { n: items.length })}` : ''}`
           return (
-            <div key={key} role="gridcell" style={{ minHeight: 72, border: '1px solid var(--border)', borderRadius: 6, padding: 4, background: isWeekend || hol ? 'var(--info-bg)' : 'var(--surface)' }}>
-              <button data-day={d} tabIndex={d === focusDay ? 0 : -1} aria-label={label} onFocus={() => setFocusDay(d)} onClick={() => setOpenDay(items.length ? key : null)} style={{ width: '100%', minHeight: 44, border: 0, background: 'none', textAlign: 'start', cursor: 'pointer' }}>
-                <strong>{d}</strong>
-                {isWeekend && <span className="helper" style={{ display: 'block', fontSize: '.7rem' }}>{t('weekend_label')}</span>}
-                {hol && <span className="helper" style={{ display: 'block', fontSize: '.7rem' }}>★ {hol[0]}</span>}
-                {items.slice(0, 2).map((o) => <span key={o.obligation_id} style={{ display: 'block', fontSize: '.75rem' }}>● {tx(o.name)}</span>)}
-                {items.length > 2 && <span className="helper" style={{ fontSize: '.7rem' }}>+{items.length - 2}</span>}
+            <div key={key} role="gridcell" className={`dln-cal-cell ${isWeekend || hol ? 'is-off' : ''} ${key === iso(today) ? 'is-today' : ''} ${items.length ? 'has-items' : ''}`}>
+              <button data-day={d} tabIndex={d === focusDay ? 0 : -1} aria-label={label} onFocus={() => setFocusDay(d)} onClick={() => setOpenDay(items.length ? key : null)}>
+                <span className="dln-cal-day">{d}</span>
+                {isWeekend && <span className="dln-cal-note">{t('weekend_label')}</span>}
+                {hol && <span className="dln-cal-note">★ {hol[0]}</span>}
+                {items.slice(0, 2).map((o) => <span key={o.obligation_id} className={`dln-cal-item tier-${o.done ? 'done' : o.days_left_tier}`}><span aria-hidden="true">{o.done ? '✓' : tierTone(o.days_left_tier).icon} </span>{tx(o.name)}</span>)}
+                {items.length > 2 && <span className="dln-cal-note">+{items.length - 2}</span>}
               </button>
             </div>
           )
         })}
       </div>
       {openDay && (
-        <div className="card" style={{ marginTop: 12 }} role="region" aria-label={formatDate(openDay, i18n.language)}>
+        <div className="dln-cal-open" role="region" aria-label={formatDate(openDay, i18n.language)}>
           <h3>{formatDate(openDay, i18n.language)}</h3>
           <ul>
             {openRows.map((o) => (
