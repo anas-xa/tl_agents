@@ -5,6 +5,7 @@ import { Button, Dialog, Message, Skeleton } from '../../components/ui'
 import { LanguageToggle } from '../../shell/Shell'
 import { currentChapterId, loadStory, pick, resetDemo, startChapter, useStory, type Chapter } from './story'
 import './i18n'
+import './demo.css'
 
 /** Public guide for the guided demo journey (demo mode only): the story told chapter by chapter. */
 export default function DemoGuide() {

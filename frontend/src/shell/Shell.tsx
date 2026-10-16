@@ -8,6 +8,7 @@ import { CompanySwitcher } from './CompanySwitcher'
 import { IdleTimeout } from './IdleTimeout'
 import { ResidencyStatement } from '../features/det/ResidencyStatement'
 import { StoryBar } from '../features/demo/StoryBar'
+import { Icon, NAV_ICONS } from '../components/Icon'
 
 export function LanguageToggle() {
   const { i18n } = useTranslation()
@@ -22,6 +23,18 @@ export function LanguageToggle() {
         English
       </button>
     </div>
+  )
+}
+
+/** Brand mark: a licence card with a check, in the accent colour (bundled SVG, no external asset). */
+export function BrandMark({ size = 32 }: { size?: number }) {
+  return (
+    <svg className="brand-mark" width={size} height={size} viewBox="0 0 32 32" aria-hidden="true" focusable="false">
+      <rect width="32" height="32" rx="8" fill="var(--accent)" />
+      <rect x="7" y="9" width="18" height="14" rx="2.5" fill="none" stroke="#fff" strokeWidth="1.8" />
+      <path d="M11 16.2l2.6 2.6 5.4-5.6" fill="none" stroke="#fff" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" />
+      <circle cx="25" cy="9" r="3.2" fill="#d4b483" stroke="var(--accent)" strokeWidth="1.4" />
+    </svg>
   )
 }
 
@@ -57,8 +70,14 @@ export function Shell() {
     <div className="shell">
       <a className="skip-link" href="#main">{t('nav.skip')}</a>
       <header className="topbar">
-        <button className="menu-btn" aria-label={t('nav.menu')} aria-expanded={menuOpen} onClick={() => setMenuOpen((o) => !o)}>☰</button>
-        <Link to="/" className="brand">{t('app.short')}</Link>
+        <button className="menu-btn" aria-label={t('nav.menu')} aria-expanded={menuOpen} onClick={() => setMenuOpen((o) => !o)}><Icon name={menuOpen ? 'close' : 'menu'} /></button>
+        <Link to="/" className="brand">
+          <BrandMark />
+          <span className="brand-text">
+            <span className="brand-name">{t('app.short')}</span>
+            <span className="brand-sub">{t('app.det')}</span>
+          </span>
+        </Link>
         <CompanySwitcher />
         <div className="topbar-end">
           <LanguageToggle />
@@ -66,11 +85,12 @@ export function Shell() {
             <button type="button" aria-haspopup="menu" aria-expanded={accountOpen} onClick={() => setAccountOpen((o) => !o)} className="account-btn">
               <span className="avatar" aria-hidden="true">{me.display_name.slice(0, 1)}</span>
               <span className="account-name"><bdi>{me.display_name}</bdi></span>
+              <Icon name="chevron-down" size={16} className="account-chevron" />
             </button>
             {accountOpen && (
               <div className="menu" role="menu">
                 <div className="menu-info"><bdi>{me.display_name}</bdi> · {me.assurance_level}</div>
-                <button role="menuitem" onClick={async () => { await signOut(); nav('/signin') }}>{t('shell.sign_out')}</button>
+                <button role="menuitem" onClick={async () => { await signOut(); nav('/signin') }}><Icon name="logout" size={18} /> {t('shell.sign_out')}</button>
               </div>
             )}
           </div>
@@ -79,7 +99,8 @@ export function Shell() {
       <StoryBar />
       {company && (
         <div className="acting-as" role="status">
-          {t('shell.acting_as', { role: roleLabel, company: companyName })}
+          <Icon name="building" size={16} />
+          <span>{t('shell.acting_as', { role: roleLabel, company: companyName })}</span>
         </div>
       )}
       <div className="layout">
@@ -88,7 +109,7 @@ export function Shell() {
             {items.map((n) => (
               <li key={n.path}>
                 <NavLink to={n.path} end={n.path === '/'} className={({ isActive }) => (isActive ? 'active' : '')}>
-                  <span aria-hidden="true" className="nav-icon">{n.icon}</span>
+                  <span aria-hidden="true" className="nav-icon">{NAV_ICONS[n.path] ? <Icon name={NAV_ICONS[n.path]} /> : n.icon}</span>
                   <span>{t(n.labelKey)}</span>
                 </NavLink>
               </li>
@@ -96,15 +117,17 @@ export function Shell() {
           </ul>
         </nav>
         <main id="main" ref={main} tabIndex={-1} className="main">
-          <Suspense fallback={<Skeleton rows={5} />}>
-            <Outlet />
-          </Suspense>
+          <div className="main-inner">
+            <Suspense fallback={<Skeleton rows={5} />}>
+              <Outlet />
+            </Suspense>
+          </div>
         </main>
       </div>
       <nav className="bottombar" aria-label={t('nav.menu')}>
         {items.slice(0, 5).map((n) => (
           <NavLink key={n.path} to={n.path} end={n.path === '/'} className={({ isActive }) => (isActive ? 'active' : '')}>
-            <span aria-hidden="true">{n.icon}</span>
+            <span aria-hidden="true" className="nav-icon">{NAV_ICONS[n.path] ? <Icon name={NAV_ICONS[n.path]} /> : n.icon}</span>
             <span>{t(n.labelKey)}</span>
           </NavLink>
         ))}

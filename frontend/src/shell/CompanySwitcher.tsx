@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import { useAuth } from '../app/auth'
+import { Icon } from '../components/Icon'
 
 const SEARCH_THRESHOLD = 8 // illustrative, configurable (E1-S5)
 
@@ -26,7 +27,7 @@ export function CompanySwitcher() {
   return (
     <div className="switcher" ref={ref}>
       <button type="button" aria-haspopup="listbox" aria-expanded={open} onClick={() => setOpen((o) => !o)} aria-label={`${t('shell.switch_company')}: ${company ? name(company) : ''} (${me.companies.length})`}>
-        <bdi>{company ? name(company) : t('shell.switch_company')}</bdi> <span aria-hidden="true">▾</span>
+        <bdi>{company ? name(company) : t('shell.switch_company')}</bdi> <Icon name="chevron-down" size={16} />
       </button>
       {open && (
         <div className="switcher-list">

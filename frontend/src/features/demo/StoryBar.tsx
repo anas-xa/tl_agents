@@ -3,6 +3,7 @@ import { useTranslation } from 'react-i18next'
 import { Button } from '../../components/ui'
 import { clearChapter, currentChapterId, pick, startChapter, useStory } from './story'
 import './i18n'
+import './demo.css'
 
 /** In-app story bar (demo mode only): the current chapter, its script, and the way to the next one. */
 export function StoryBar() {
