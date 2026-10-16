@@ -241,6 +241,21 @@ const en = {
   show_chart: 'Show as chart',
   period_col: 'Period', avg_hours: 'Average hours',
   k24_bd_owner_in_uae: 'Owner in the UAE', k24_bd_owner_abroad: 'Owner abroad', k24_bd_delegate: 'Delegate',
+  // UI redesign (stream 2): task card, step structure
+  needs_your_approval: 'Needs your approval',
+  waiting_owner_approval: 'Waiting for the owner\'s approval',
+  review_and_approve: 'Review and approve',
+  view_return: 'View return',
+  col_return: 'Return',
+  step1_title: 'Review the figures',
+  step1_desc: 'Check the key figures, the source data and the calculation basis.',
+  step2_title: 'Confirm the statements',
+  step3_title: 'Approve',
+  step_filing_desc: 'After approval, file the return yourself on EmaraTax, then record the filing here.',
+  step_n: 'Step {{n}}',
+  key_figures: 'Key figures',
+  other_lines: 'Other lines',
+  all_versions: 'Version details',
 }
 
 const ar: typeof en = {
@@ -472,6 +487,21 @@ const ar: typeof en = {
   show_chart: 'عرض كرسم بياني',
   period_col: 'الفترة', avg_hours: 'متوسط الساعات',
   k24_bd_owner_in_uae: 'المالك داخل الدولة', k24_bd_owner_abroad: 'المالك خارج الدولة', k24_bd_delegate: 'المفوَّض',
+  // UI redesign (stream 2): task card, step structure
+  needs_your_approval: 'بانتظار موافقتك',
+  waiting_owner_approval: 'بانتظار موافقة المالك',
+  review_and_approve: 'راجِع ووافِق',
+  view_return: 'عرض الإقرار',
+  col_return: 'الإقرار',
+  step1_title: 'راجِع الأرقام',
+  step1_desc: 'تحقّق من الأرقام الرئيسية وبيانات المصدر وأساس الحساب.',
+  step2_title: 'أكّد ما يلي',
+  step3_title: 'الموافقة',
+  step_filing_desc: 'بعد الموافقة، قدّم الإقرار بنفسك عبر إيماراتاكس، ثم سجّل التقديم هنا.',
+  step_n: 'الخطوة {{n}}',
+  key_figures: 'الأرقام الرئيسية',
+  other_lines: 'بنود أخرى',
+  all_versions: 'تفاصيل الإصدار',
 }
 
 i18n.addResourceBundle('en', 'approvals', en)

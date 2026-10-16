@@ -1,7 +1,8 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import { Link, useNavigate } from 'react-router-dom'
-import { Button, Chip, Field, Message, Panel, Skeleton, Table } from '../../components/ui'
+import { Icon } from '../../components/Icon'
+import { Button, Chip, Disclosure, Field, Message, Skeleton, StatCard, Toolbar } from '../../components/ui'
 import { get, post } from '../../lib/api'
 import { formatAED, formatDate, formatDateTime } from '../../lib/format'
 import { ctPeriods, errorKey, lastClosedQuarter, vatPeriods, type CalcView, type Calculation, type ChecklistItem, type Pack } from './types'
@@ -9,13 +10,14 @@ import { ctPeriods, errorKey, lastClosedQuarter, vatPeriods, type CalcView, type
 type Out = Record<string, unknown>
 const num = (o: Out | null | undefined, k: string) => (o && typeof o[k] === 'number' ? (o[k] as number) : null)
 
-function Figure({ label, fils, mark, lang }: { label: string; fils: number | null; mark?: string; lang: string }) {
+function Figure({ label, fils, mark, lang, keyFigure }: { label: string; fils: number | null; mark?: string; lang: string; keyFigure?: boolean }) {
   return (
-    <div className="card" style={{ padding: 12 }}>
-      <div className="hint">{label}</div>
-      <div style={{ fontSize: '1.3rem', fontWeight: 700 }}><bdi dir="ltr">{fils === null ? '—' : formatAED(fils, lang)}</bdi></div>
-      {mark && <Chip tone="neutral">{mark}</Chip>}
-    </div>
+    <StatCard
+      className={keyFigure ? 'tax-key' : undefined}
+      label={label}
+      value={<bdi dir="ltr">{fils === null ? '—' : formatAED(fils, lang)}</bdi>}
+      status={mark ? <Chip tone="neutral">{mark}</Chip> : undefined}
+    />
   )
 }
 
@@ -98,13 +100,26 @@ export default function CalculationPanel({ companyId, taxType }: { companyId: st
   const ruleRef = c?.rule_refs ? c.rule_refs[taxType === 'vat' ? 'vat-rate' : 'ct-rate'] : null
 
   const selector = (
-    <div className="actions" style={{ alignItems: 'end' }}>
+    <Toolbar label={t('period')}>
       <Field label={t('period')} id={`period-${taxType}`} hint={t('gloss_period')}>
         <select id={`period-${taxType}`} value={period} onChange={(e) => setPeriod(e.target.value)}>
           {periods.map((p) => <option key={p} value={p}>{p}</option>)}
         </select>
       </Field>
-    </div>
+      {c?.due_date && (
+        <div className="tax-due">
+          <Icon name="calendar" size={18} />
+          <span>{t('due', { date: formatDate(c.due_date, lang), source: t(`due_source_${c.due_date_source}`) })}</span>
+        </div>
+      )}
+      {canPrepare && c && !['no_rule_stop', 'blocked', 'missing_vat_code', 'run_failed'].includes(c.state) && view?.role !== 'remote_owner' && (
+        <div className="toolbar-end">
+          <Button variant="secondary" onClick={run}>{t('recalculate')}</Button>
+          <Button variant="secondary" onClick={markReviewed} disabled={c.state !== 'current' || c.review_status === 'reviewed'}>{t('mark_reviewed')}</Button>
+          <Button onClick={createDraft} disabled={c.state === 'stale'}>{t('create_draft')}</Button>
+        </div>
+      )}
+    </Toolbar>
   )
 
   const body = () => {
@@ -122,8 +137,7 @@ export default function CalculationPanel({ companyId, taxType }: { companyId: st
       return (
         <div>
           <Chip tone={c.state === 'current' ? 'ok' : 'attention'}>{t(`state_${c.state}`)}</Chip>
-          {c.net_figure_fils != null && <Figure label={taxType === 'vat' ? t('net_vat') : t('tax')} fils={c.net_figure_fils} lang={lang} />}
-          {c.due_date && <p>{t('due', { date: formatDate(c.due_date, lang), source: t(`due_source_${c.due_date_source}`) })}</p>}
+          {c.net_figure_fils != null && <div className="stat-grid tax-figs"><Figure label={taxType === 'vat' ? t('net_vat') : t('tax')} fils={c.net_figure_fils} lang={lang} keyFigure /></div>}
           <p className="hint">{t('summary_view')}</p>
         </div>
       )
@@ -168,18 +182,18 @@ export default function CalculationPanel({ companyId, taxType }: { companyId: st
             <div><Chip tone="attention" icon="!">{t('incomplete')}</Chip> <Chip tone="neutral">{t('excludes_n', { n: c.excluded_count })}</Chip></div>
           </Message>
         )}
-        <div className="actions" style={{ marginTop: 0 }}>
+        <div className="tax-labels">
           <Chip tone="draft" icon="✎">{c.review_status === 'reviewed' && c.reviewed_by ? t('reviewed_by', { name: c.reviewed_by.name, role: c.reviewed_by.role, date: formatDate(c.reviewed_by.at, lang) }) : t('ai_not_reviewed')}</Chip>
-          <Chip tone="neutral">{t('draft_label')}</Chip>
           {ruleRef && <Chip tone="info" icon="§">{t('rules_used', { version: ruleRef.version, date: formatDate(ruleRef.effective_from, lang) })}</Chip>}
           <span className="hint">{t('version_n', { n: c.version })}</span>
         </div>
-        <div className="grid" style={{ opacity: stale ? 0.5 : 1, marginTop: 12 }} aria-disabled={stale}>
+        <h3 className="visually-hidden">{t('key_figures')}</h3>
+        <div className="stat-grid tax-figs" style={{ opacity: stale ? 0.5 : 1 }} aria-disabled={stale}>
           {taxType === 'vat' ? (
             <>
               <Figure label={t('out_vat')} fils={num(o, 'output_vat_fils')} mark={t('line_calculated')} lang={lang} />
               <Figure label={t('in_vat')} fils={num(o, 'input_vat_fils')} mark={t('line_calculated')} lang={lang} />
-              <Figure label={t('net_vat')} fils={num(o, 'net_vat_fils')} mark={t('line_calculated')} lang={lang} />
+              <Figure label={t('net_vat')} fils={num(o, 'net_vat_fils')} mark={t('line_calculated')} lang={lang} keyFigure />
             </>
           ) : (
             <>
@@ -188,22 +202,26 @@ export default function CalculationPanel({ companyId, taxType }: { companyId: st
               <Figure label={t('taxable_income')} fils={num(o, 'taxable_income_fils')} mark={t('line_calculated')} lang={lang} />
               <Figure label={t('band_0')} fils={num(o, 'band_0_fils')} lang={lang} />
               <Figure label={t('band_9')} fils={num(o, 'band_9_fils')} lang={lang} />
-              <Figure label={t('tax')} fils={num(o, 'tax_fils')} mark={t('line_calculated')} lang={lang} />
+              <Figure label={t('tax')} fils={num(o, 'tax_fils')} mark={t('line_calculated')} lang={lang} keyFigure />
             </>
           )}
         </div>
-        {c.due_date && <p>{t('due', { date: formatDate(c.due_date, lang), source: t(`due_source_${c.due_date_source}`) })}</p>}
         <p className="hint">{t('estimates')} {t('configured_pending')}.</p>
         {taxType === 'ct' && sbr && (
-          <Panel title={String(sbr.indicator) === 'may be eligible' ? t('sbr_may_be') : t('sbr_not_eligible')} tone="info">
-            <p><Chip tone={sbr.indicator === 'may be eligible' ? 'info' : 'neutral'}>{sbr.indicator === 'may be eligible' ? t('sbr_eligible') : t('sbr_not_eligible')}</Chip></p>
+          <section className="card tax-sbr" aria-labelledby={`sbr-${taxType}`}>
+            <div className="tax-sbr-head">
+              <h3 id={`sbr-${taxType}`}>{String(sbr.indicator) === 'may be eligible' ? t('sbr_may_be') : t('sbr_not_eligible')}</h3>
+              <Chip tone={sbr.indicator === 'may be eligible' ? 'info' : 'neutral'}>{sbr.indicator === 'may be eligible' ? t('sbr_eligible') : t('sbr_not_eligible')}</Chip>
+            </div>
             {typeof sbr.reason === 'string' && <p>{t('sbr_reason', { reason: sbr.reason })}</p>}
             <p>{t('sbr_revenue', { amount: formatAED(num(sbr, 'revenue_fils'), lang), source: String(sbr.revenue_source ?? '') })}</p>
             <p>{t('sbr_election', { status: String(sbr.election_status) })}</p>
-            <p className="hint">{t('sbr_instrument', { instrument: String(sbr.instrument), review: String(sbr.review_status) })}</p>
-            {typeof sbr.cutoff_date === 'string' && <p className="hint">{t('sbr_applied_until', { date: formatDate(sbr.cutoff_date, lang) })}</p>}
             <p className="hint">{t('sbr_indicator_only')}</p>
-          </Panel>
+            <Disclosure summary={t('calculation_basis')}>
+              <p>{t('sbr_instrument', { instrument: String(sbr.instrument), review: String(sbr.review_status) })}</p>
+              {typeof sbr.cutoff_date === 'string' && <p>{t('sbr_applied_until', { date: formatDate(sbr.cutoff_date, lang) })}</p>}
+            </Disclosure>
+          </section>
         )}
         {taxType === 'ct' && Array.isArray(o?.flagged_items) && (o?.flagged_items as Out[]).length > 0 && (
           <Message kind="info">
@@ -211,24 +229,27 @@ export default function CalculationPanel({ companyId, taxType }: { companyId: st
           </Message>
         )}
         {(c.excluded_items?.length ?? 0) > 0 && (
-          <details>
-            <summary>{t('excluded_list')}: {t('excluded_header', { n: c.excluded_count, total: formatAED(c.excluded_total_fils, lang) })}</summary>
-            <Table headers={[t('col_date'), t('col_description'), t('col_amount'), t('col_reason'), t('col_actions')]}>
-              {c.excluded_items!.map((e, i) => (
-                <tr key={i}>
-                  <td><bdi dir="ltr">{formatDate(e.date, lang)}</bdi></td>
-                  <td><bdi dir="auto">{e.description}</bdi></td>
-                  <td><bdi dir="ltr">{formatAED(e.aed_amount_fils, lang)}</bdi></td>
-                  <td>{e.reason}</td>
-                  <td><Link to="/tax?tab=books">{t('review_item')}</Link></td>
-                </tr>
-              ))}
-            </Table>
-          </details>
+          <Disclosure summary={<>{t('excluded_list')}: {t('excluded_header', { n: c.excluded_count, total: formatAED(c.excluded_total_fils, lang) })}</>}>
+            <div className="table-wrap">
+              <table className="table-compact">
+                <thead><tr><th scope="col">{t('col_date')}</th><th scope="col">{t('col_description')}</th><th scope="col" className="num">{t('col_amount')}</th><th scope="col">{t('col_reason')}</th><th scope="col">{t('col_actions')}</th></tr></thead>
+                <tbody>
+                  {c.excluded_items!.map((e, i) => (
+                    <tr key={i}>
+                      <td className="date-cell"><bdi dir="ltr">{formatDate(e.date, lang)}</bdi></td>
+                      <td><bdi dir="auto">{e.description}</bdi></td>
+                      <td className="num"><bdi dir="ltr">{formatAED(e.aed_amount_fils, lang)}</bdi></td>
+                      <td>{e.reason}</td>
+                      <td><Link to="/tax?tab=books">{t('review_item')}</Link></td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          </Disclosure>
         )}
-        <details>
-          <summary>{t('trace')}</summary>
-          <ol>
+        <Disclosure summary={t('trace')}>
+          <ol className="tax-trace">
             {(c.trace ?? []).map((s, i) => (
               <li key={i}><span>{String(s.step)}</span> <code dir="ltr" className="hint">{JSON.stringify(Object.fromEntries(Object.entries(s).filter(([k]) => k !== 'step')))}</code></li>
             ))}
@@ -245,7 +266,7 @@ export default function CalculationPanel({ companyId, taxType }: { companyId: st
               </ul>
             </>
           )}
-        </details>
+        </Disclosure>
         {c.comparison?.available && (
           <p className="hint">
             {c.comparison.same ? t('same_result') : (
@@ -255,11 +276,6 @@ export default function CalculationPanel({ companyId, taxType }: { companyId: st
             )}
           </p>
         )}
-        <div className="actions">
-          {canPrepare && <Button variant="secondary" onClick={run}>{t('recalculate')}</Button>}
-          {canPrepare && <Button variant="secondary" onClick={markReviewed} disabled={c.state !== 'current' || c.review_status === 'reviewed'}>{t('mark_reviewed')}</Button>}
-          {canPrepare && <Button onClick={createDraft} disabled={stale}>{t('create_draft')}</Button>}
-        </div>
         {!c.can_approve && c.approval_disabled_reason && <p className="hint">{c.state === 'incomplete' ? t('approval_off') : stale ? t('approval_current_only') : c.approval_disabled_reason}</p>}
       </div>
     )
@@ -277,20 +293,24 @@ export default function CalculationPanel({ companyId, taxType }: { companyId: st
       </div>
       {body()}
       {checklist && checklist.length > 0 && (
-        <Panel title={t('checklist_title')}>
-          <p>{t('missing_items', { n: checklist.length })}</p>
-          <Table headers={[t('col_item'), t('col_why'), t('col_who'), t('col_action'), t('col_status')]}>
+        <section className="card tax-checklist" aria-labelledby={`checklist-${taxType}`}>
+          <div className="tax-sbr-head">
+            <h3 id={`checklist-${taxType}`}>{t('checklist_title')}</h3>
+          </div>
+          <p className="hint">{t('missing_items', { n: checklist.length })}</p>
+          <ul className="tax-check-list">
             {checklist.map((m) => (
-              <tr key={m.key}>
-                <td>{t(`item_${m.key}`)}</td>
-                <td>{m.why}</td>
-                <td>{t(`who_${m.who}`)}</td>
-                <td>{m.owner_only ? <>{t('only_owner_can')} <Button variant="link">{t('notify_owner')}</Button></> : m.action}</td>
-                <td><Chip tone="attention">{t('missing')}</Chip></td>
-              </tr>
+              <li key={m.key}>
+                <span className="tax-check-icon" aria-hidden="true"><Icon name="alert" size={18} /></span>
+                <div className="tax-check-main">
+                  <div className="tax-check-title">{t(`item_${m.key}`)} <Chip tone="attention">{t('missing')}</Chip></div>
+                  <div className="hint">{t('col_why')}: {m.why} · {t('col_who')}: {t(`who_${m.who}`)}</div>
+                </div>
+                <div className="tax-check-action">{m.owner_only ? <>{t('only_owner_can')} <Button variant="link">{t('notify_owner')}</Button></> : m.action}</div>
+              </li>
             ))}
-          </Table>
-        </Panel>
+          </ul>
+        </section>
       )}
       <p className="hint">
         {t('not_advice')} <Button variant="link" onClick={escalate}>{t('escalate')}</Button> · <Link to="/help">{t('ask_a_human')}</Link>

@@ -1,0 +1,121 @@
+/* Tax workspace and draft viewer (SC6). Prefix: .tax-. Logical properties only. */
+.tax-foot { margin-top: 24px; }
+.tax-page .toolbar { align-items: flex-end; }
+.tax-counts { align-self: center; }
+.tax-due { display: inline-flex; align-items: center; gap: 8px; min-height: 44px; align-self: flex-start; margin-top: 28px; color: var(--text-2); font-size: var(--fs-sm); font-weight: 600; }
+.tax-due .icon { color: var(--accent); }
+
+/* tables inside a card */
+.tax-table { padding: 0; overflow: hidden; margin-bottom: 16px; }
+.tax-table .table-wrap { border-radius: 0; }
+.tax-table-note { display: flex; flex-wrap: wrap; align-items: center; gap: 6px 10px; margin: 0; padding: 12px 16px; border-bottom: 1px solid var(--border); background: var(--surface-2); }
+.tax-books td { vertical-align: top; }
+.tax-books th.num, .tax-books td.num, .tax-table th.num { text-align: end; }
+.tax-desc { min-width: 220px; }
+.tax-desc .hint { font-size: var(--fs-xs); line-height: 1.5; margin-top: 2px; }
+.tax-amount { font-weight: 600; }
+.tax-amount .tax-fx { font-weight: 400; white-space: normal; font-size: var(--fs-xs); }
+.tax-proposal { min-width: 180px; }
+.tax-proposal .hint { font-size: var(--fs-xs); }
+.tax-proposal-main { font-weight: 500; }
+.tax-actions { min-width: 210px; }
+.tax-row-actions { display: flex; flex-wrap: wrap; gap: 6px; }
+.tax-row-actions .btn-sm { min-height: 40px; }
+.tax-reject { color: var(--critical); }
+.tax-reject:hover:not(:disabled) { border-color: var(--critical); background: var(--critical-bg); }
+.tax-row-link { display: inline-flex; align-items: center; min-height: 36px; font-weight: 600; text-decoration: none; }
+.tax-row-link:hover { text-decoration: underline; }
+
+/* calculation */
+.tax-labels { display: flex; flex-wrap: wrap; align-items: center; gap: 6px 8px; margin-bottom: 12px; }
+.tax-figs { grid-template-columns: repeat(3, minmax(0, 1fr)); margin-bottom: 12px; }
+@media (max-width: 1100px) { .tax-figs { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
+.tax-figs .stat-card { padding: 16px 18px; }
+.tax-figs .stat-card-value { font-size: 1.375rem; white-space: nowrap; }
+.tax-key { border-color: var(--accent-tint-2); }
+.tax-key .stat-card-value { color: var(--accent); }
+.tax-sbr, .tax-checklist { margin: 16px 0; }
+.tax-sbr-head { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 8px 12px; margin-bottom: 10px; }
+.tax-sbr-head h3 { font-size: var(--fs-md); }
+.tax-sbr p { margin-bottom: 6px; }
+.tax-trace { padding-inline-start: 20px; margin: 4px 0; }
+.tax-trace code { overflow-wrap: anywhere; }
+.tax-check-list { list-style: none; margin: 8px 0 0; padding: 0; }
+.tax-check-list li { display: grid; grid-template-columns: 28px minmax(0, 1fr) auto; gap: 4px 12px; align-items: start; padding: 12px 0; border-top: 1px solid var(--border); }
+.tax-check-icon { color: var(--attention); padding-top: 2px; }
+.tax-check-title { font-weight: 600; display: flex; flex-wrap: wrap; align-items: center; gap: 6px 8px; }
+.tax-check-action { color: var(--text-2); font-size: var(--fs-sm); }
+@media (max-width: 720px) {
+  .tax-check-list li { grid-template-columns: 28px minmax(0, 1fr); }
+  .tax-check-action { grid-column: 2; }
+  .tax-due { margin-top: 0; }
+  .tax-figs .stat-card { flex-direction: row; flex-wrap: wrap; align-items: baseline; justify-content: space-between; gap: 4px 12px; padding: 12px 14px; }
+  .tax-figs .stat-card-value { font-size: 1.25rem; }
+  .tax-figs { gap: 8px; grid-template-columns: minmax(0, 1fr); }
+}
+
+/* ---------- Books on phones: rows become stacked cards ---------- */
+@media (max-width: 720px) {
+  .tax-books, .tax-books tbody, .tax-books tr, .tax-books td { display: block; width: 100%; }
+  .tax-books thead { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); }
+  .tax-books tr { display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: 4px 12px; padding: 12px 16px; border-bottom: 1px solid var(--border); }
+  .tax-books td { border: 0; padding: 0; min-width: 0; }
+  .tax-books td.date-cell { grid-column: 1; grid-row: 1; color: var(--muted); font-size: var(--fs-sm); }
+  .tax-books td.tax-amount { grid-column: 2; grid-row: 1 / span 2; text-align: end; }
+  .tax-books td.tax-desc { grid-column: 1; grid-row: 2; }
+  .tax-books td.tax-proposal, .tax-books td:nth-child(5), .tax-books td.tax-actions { grid-column: 1 / -1; }
+  .tax-desc, .tax-proposal, .tax-actions { min-width: 0; }
+  .tax-row-actions { margin-top: 6px; }
+}
+
+/* ---------- Draft viewer ---------- */
+.tax-watermark { display: flex; align-items: center; gap: 10px; padding: 10px 14px; margin-bottom: 16px; border: 1px dashed var(--attention); border-radius: var(--radius-sm); background: var(--attention-bg); color: var(--attention); font-size: var(--fs-sm); font-weight: 600; }
+.tax-dv-layout { display: grid; grid-template-columns: minmax(0, 1.7fr) minmax(280px, 1fr); gap: 20px 24px; align-items: start; }
+.tax-dv-layout > * { min-width: 0; }
+.tax-dv-layout .panel { margin-bottom: 20px; }
+@media (max-width: 1100px) { .tax-dv-layout { grid-template-columns: minmax(0, 1fr); } }
+.tax-lines td { vertical-align: top; }
+.tax-lines td.num, .tax-lines th.num { text-align: end; }
+.tax-lines .hint { font-size: var(--fs-xs); }
+.tax-lines .tax-line-term { font-weight: 600; }
+.tax-src-btn { min-height: 40px; padding: 0 4px; font-size: var(--fs-sm); }
+.tax-basis dl.kv { margin-top: 6px; }
+.tax-basis ul { margin: 0; padding-inline-start: 18px; }
+.tax-sources { list-style: none; margin: 0; padding: 0; display: grid; gap: 4px; }
+.tax-sources code { overflow-wrap: anywhere; font-size: var(--fs-xs); }
+.tax-dv-actions { display: grid; gap: 8px; }
+.tax-dv-actions .btn { width: 100%; }
+.tax-dv-actions .tax-dv-row { display: flex; gap: 8px; flex-wrap: wrap; }
+.tax-dv-actions .tax-dv-row .btn { flex: 1 1 120px; width: auto; }
+.tax-versions { list-style: none; margin: 0 0 8px; padding: 0; }
+.tax-versions li { padding: 4px 0; }
+.tax-history { list-style: none; margin: 0; padding: 0; }
+.tax-history li { display: grid; gap: 0; padding: 8px 0; border-top: 1px solid var(--border); font-size: var(--fs-sm); }
+.tax-legal { margin-top: 8px; padding-top: 16px; border-top: 1px solid var(--border); }
+.tax-legal p:first-child { font-weight: 600; }
+@media (max-width: 720px) {
+  .tax-lines, .tax-lines tbody, .tax-lines tr, .tax-lines td { display: block; width: 100%; }
+  .tax-lines thead { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); }
+  .tax-lines tr { display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: 4px 12px; padding: 12px 16px; border-bottom: 1px solid var(--border); }
+  .tax-lines td { border: 0; padding: 0; }
+  .tax-lines td:nth-child(1) { grid-column: 1; grid-row: 1; }
+  .tax-lines td.num { grid-column: 2; grid-row: 1; }
+  .tax-lines td:nth-child(3), .tax-lines td:nth-child(4) { grid-column: 1 / -1; }
+}
+.tax-sub { font-size: var(--fs-sm); color: var(--text-2); margin: 12px 0 6px; }
+.tax-sub:first-child { margin-top: 0; }
+.tax-table-panel .panel-body { padding: 0; }
+.tax-table-panel .table-wrap { border-radius: 0 0 var(--radius) var(--radius); }
+.tax-dv-export { margin-top: 14px; padding-top: 14px; border-top: 1px solid var(--border); }
+.tax-basis .disclosure:first-child { border-top: 0; margin-top: 0; padding-top: 0; }
+.tax-basis dl.kv dt { text-transform: capitalize; }
+.tax-back { display: inline-flex; align-items: center; gap: 6px; min-height: 44px; margin-bottom: 4px; font-weight: 600; text-decoration: none; font-size: var(--fs-sm); }
+.tax-back:hover { text-decoration: underline; }
+@media (max-width: 720px) {
+  .tax-drafts, .tax-drafts tbody, .tax-drafts tr, .tax-drafts td { display: block; width: 100%; }
+  .tax-drafts thead { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); }
+  .tax-drafts tr { display: flex; flex-wrap: wrap; gap: 4px 12px; padding: 12px 16px; border-bottom: 1px solid var(--border); }
+  .tax-drafts td { border: 0; padding: 0; width: auto; }
+  .tax-drafts td:first-child { width: 100%; }
+  .tax-drafts td.date-cell { white-space: normal; color: var(--muted); font-size: var(--fs-sm); }
+}

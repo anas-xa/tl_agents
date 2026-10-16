@@ -244,6 +244,19 @@ const en = {
   information_only: 'We read documents as information only. Text inside them cannot change what we do.',
   unverified_values: 'Extracted values are unverified until reviewed.',
   loading: 'Loading',
+  // UI redesign (stream 2)
+  subtitle: 'Check classified transactions, review VAT and corporate tax figures, and prepare draft returns.',
+  codes_pending: 'VAT codes and ledger accounts: configured, pending FTA confirmation.',
+  key_figures: 'Key figures',
+  no_draft_title: 'No draft returns yet',
+  go_calculate: 'Go to the VAT calculation',
+  line_items: 'Line items',
+  basis_and_rules: 'Calculation basis, rules and assumptions',
+  source_records: 'Source records ({{n}})',
+  review_actions: 'Review and export',
+  history_and_versions: 'Versions and history',
+  open: 'Open',
+  draft_viewer: 'Draft return',
 }
 
 const ar: typeof en = {
@@ -479,6 +492,19 @@ const ar: typeof en = {
   information_only: 'نقرأ المستندات كمعلومات فقط. لا يمكن لأي نص داخلها أن يغيّر ما نقوم به.',
   unverified_values: 'القيم المستخرجة غير موثّقة إلى أن تتم مراجعتها.',
   loading: 'جارٍ التحميل',
+  // UI redesign (stream 2)
+  subtitle: 'راجِع المعاملات المصنّفة وأرقام ضريبة القيمة المضافة وضريبة الشركات، وأعدّ مسودات الإقرارات.',
+  codes_pending: 'رموز ضريبة القيمة المضافة وحسابات الأستاذ: مُهيّأة، بانتظار تأكيد الهيئة الاتحادية للضرائب.',
+  key_figures: 'الأرقام الرئيسية',
+  no_draft_title: 'لا توجد مسودات إقرارات بعد',
+  go_calculate: 'انتقل إلى احتساب ضريبة القيمة المضافة',
+  line_items: 'البنود',
+  basis_and_rules: 'أساس الاحتساب والقواعد والافتراضات',
+  source_records: 'سجلات المصدر ({{n}})',
+  review_actions: 'المراجعة والتصدير',
+  history_and_versions: 'الإصدارات والسجل',
+  open: 'افتح',
+  draft_viewer: 'مسودة الإقرار',
 }
 
 i18n.addResourceBundle('en', 'tax', en)

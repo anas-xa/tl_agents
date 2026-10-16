@@ -138,6 +138,19 @@ const en = {
   dash: { title: 'Audit', open: 'Open audit preparation', exceptions: '{{n}} items for review' },
   error: 'We could not load audit preparation. Your data is safe. Try again.',
   loading: 'Loading…',
+  ui: {
+    subtitle: 'See whether an audit may be needed, check items flagged for review, and follow the audit work draft.',
+    indicator_label: 'Audit indication',
+    items_label: 'Items for review',
+    items_value: '{{n}} new',
+    items_hint: '{{m}} in total',
+    items_none: 'None',
+    file_label: 'Audit work draft',
+    filters: 'Filter items',
+    rule_details: 'Rule details',
+    no_file: 'Not started',
+    more: 'More about this result',
+  },
 }
 
 const ar = {
@@ -277,6 +290,19 @@ const ar = {
   dash: { title: 'التدقيق', open: 'افتح التحضير للتدقيق', exceptions: '{{n}} بنود للمراجعة' },
   error: 'تعذّر تحميل التحضير للتدقيق. بياناتك آمنة. حاول مرة أخرى.',
   loading: 'جارٍ التحميل…',
+  ui: {
+    subtitle: 'اعرف ما إذا كان التدقيق قد يكون مطلوبًا، وراجِع البنود المُعلَّمة للمراجعة، وتابِع مسودة أعمال التدقيق.',
+    indicator_label: 'مؤشر التدقيق',
+    items_label: 'بنود للمراجعة',
+    items_value: 'جديدة: {{n}}',
+    items_hint: 'من أصل {{m}}',
+    items_none: 'لا يوجد',
+    file_label: 'مسودة أعمال التدقيق',
+    filters: 'تصفية البنود',
+    rule_details: 'تفاصيل القاعدة',
+    no_file: 'لم تبدأ',
+    more: 'المزيد عن هذه النتيجة',
+  },
 }
 
 i18n.addResourceBundle('en', 'audit', en)

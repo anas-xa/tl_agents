@@ -1,7 +1,8 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import { Link } from 'react-router-dom'
-import { Button, Chip, Dialog, Empty, Field, Message, Skeleton, Table } from '../../components/ui'
+import { Icon } from '../../components/Icon'
+import { Button, Chip, Dialog, Empty, Field, Message, Skeleton, Toolbar } from '../../components/ui'
 import { get, post } from '../../lib/api'
 import { formatAED, formatDate, formatDateTime } from '../../lib/format'
 import { SR_ONLY, errorKey, type Reference, type TxnList, type TxnRow } from './types'
@@ -114,7 +115,7 @@ export default function Books({ companyId }: { companyId: string }) {
 
   if (data.view === 'no_function') {
     return (
-      <Empty icon="🔒" title={t('no_function')} action={<Button variant="secondary">{t('ask_owner')}</Button>} />
+      <Empty icon="lock" title={t('no_function')} action={<Button variant="secondary">{t('ask_owner')}</Button>} />
     )
   }
 
@@ -156,6 +157,7 @@ export default function Books({ companyId }: { companyId: string }) {
       <>
         {banners}
         <Empty
+          icon="inbox"
           title={t('empty_queue')}
           action={
             <div className="actions" style={{ justifyContent: 'center' }}>
@@ -183,7 +185,7 @@ export default function Books({ companyId }: { companyId: string }) {
     <div>
       {banners}
       <div role="status" aria-live="polite" style={SR_ONLY}>{announce}</div>
-      <div className="actions" style={{ alignItems: 'end' }}>
+      <Toolbar label={t('filter')}>
         <Field label={t('filter')} id="tax-filter">
           <select id="tax-filter" value={filter} onChange={(e) => setFilter(e.target.value as (typeof FILTERS)[number])}>
             {FILTERS.filter((f) => f !== 'quarantined' || isOwner).map((f) => (
@@ -191,8 +193,16 @@ export default function Books({ companyId }: { companyId: string }) {
             ))}
           </select>
         </Field>
-        {canAct && <Button variant="secondary" onClick={classifyAll}>{t('classify_all')}</Button>}
-      </div>
+        <span className="tax-counts hint">{t('summary_counts', { needs: counts.needs_review ?? 0, proposed: counts.proposed ?? 0, posted: counts.posted ?? 0 })}</span>
+        {canAct && (
+          <div className="toolbar-end">
+            {canAct && <Button variant="secondary" onClick={classifyAll}><Icon name="sparkle" size={18} />{t('classify_all')}</Button>}
+            {canAct && bulkCount > 0 && (
+              <Button ref={bulkTrigger} onClick={openBulk} aria-label={t('bulk_open', { count: bulkCount })}>{t('bulk_open', { count: bulkCount })}</Button>
+            )}
+          </div>
+        )}
+      </Toolbar>
       {preparing && <p role="status">{t('preparing', { done: preparing.done, total: preparing.total })}</p>}
       {error && <Message kind="error">{error}</Message>}
       {filter === 'needs_review' && data.rows.length === 0 && <Message kind="success">{t('all_reviewed')}</Message>}
@@ -206,79 +216,92 @@ export default function Books({ companyId }: { companyId: string }) {
         </Message>
       )}
       {data.rows.length > 0 && (
-        <Table headers={[t('col_date'), t('col_description'), t('col_amount'), t('col_proposal'), t('col_status'), t('col_actions')]}>
-          {data.rows.map((r) => (
-            <tr key={r.id} aria-busy={busyRow === r.id}>
-              <td><bdi dir="ltr">{formatDate(r.txn_date, lang)}</bdi></td>
-              <td>
-                <bdi dir="auto">{r.description}</bdi>
-                <div className="hint">
-                  {t('lang_label', { lang: t(`lang_${r.description_language}`) })}
-                  {r.manual_unverified && <> · <Chip tone="neutral">{t('manual_unverified')}</Chip></>}
-                  {r.treated_as_data && <> · <span>{t('treated_as_data')}</span></>}
-                  {r.consent_withdrawn && <> · <span>{t('consent_withdrawn_row')}</span></>}
-                </div>
-                <div className="hint">{t('source_ref', { system: r.source_system, id: '' })}<bdi dir="ltr">{r.source_id}</bdi></div>
-              </td>
-              <td>
-                <bdi dir="ltr">{r.direction === 'out' ? '−' : ''}{formatAED(r.aed_amount_fils, lang)}</bdi>
-                {r.fx && (
-                  <div className="hint">
-                    {r.fx.missing ? t('fx_missing') : t('fx_line', { amount: (r.original_amount_fils / 100).toFixed(2), currency: r.original_currency, rate: r.fx.rate, source: r.fx.source, date: formatDate(r.fx.rate_date, lang) })}
-                    {r.fx.carried && <> · {t('fx_carried')}</>}
-                  </div>
-                )}
-              </td>
-              <td>
-                <Chip tone="draft" icon="✎">{t('ai_prepared_draft')}</Chip>
-                <div>{catLabel(r.final.category ?? r.proposed.category)} · <bdi dir="ltr">{r.final.vat_code ?? r.proposed.vat_code ?? '—'}</bdi> · <bdi dir="ltr">{r.final.ledger_account ?? r.proposed.ledger_account ?? '—'}</bdi></div>
-                {r.review_reason && (
-                  <div className="hint">
-                    <span aria-hidden="true">{r.review_reason === 'Matches your earlier choices' ? '↺ ' : '? '}</span>
-                    {r.review_reason === 'Matches your earlier choices' ? t('reason_matches') : t('reason_no_basis')}
-                  </div>
-                )}
-                <div className="hint">{t('configured_pending')}</div>
-              </td>
-              <td>
-                {statusChip(r)}
-                {r.reviewer && r.status === 'posted' && <div className="hint">{t('posted_by', { name: r.reviewer.name, role: r.reviewer.role, datetime: formatDateTime(r.reviewer.at, lang) })}</div>}
-                {r.quarantine && <div className="hint">{t('quarantined', { name: r.quarantine.made_by, date: formatDate(r.quarantine.access_removed_on, lang) })}</div>}
-              </td>
-              <td>
-                {canAct && (r.status === 'proposed' || r.status === 'needs_review') && (
-                  <div className="actions" style={{ marginTop: 0 }}>
-                    {r.proposed.category && <Button onClick={() => act(r, 'accept')} disabled={busyRow === r.id}>{t('accept')}</Button>}
-                    <Button variant="secondary" onClick={() => { setCorrecting(r); setForm({ category: r.proposed.category ?? '', vat_code: r.proposed.vat_code ?? '', ledger_account: r.proposed.ledger_account ?? '' }) }}>{t('correct')}</Button>
-                    <Button variant="danger" style={{ marginInlineStart: 12 }} onClick={() => act(r, 'reject')}>{t('reject')}</Button>
-                  </div>
-                )}
-                {canAct && r.status === 'quarantined' && isOwner && (
-                  <div className="actions" style={{ marginTop: 0 }}>
-                    <Button variant="secondary" onClick={() => setQuarantine({ decision: 'keep_and_review', ids: [r.id] })}>{t('keep_and_review')}</Button>
-                    <Button variant="danger" onClick={() => setQuarantine({ decision: 'discard', ids: [r.id] })}>{t('discard')}</Button>
-                  </div>
-                )}
-                {canAct && r.can_undo && <Button variant="link" onClick={() => act(r, 'undo')}>{t('undo')}</Button>}
-                {rowError?.id === r.id && (
-                  <div role="alert">
-                    <p>{rowError.text}</p>
-                    {r.status === 'draft_not_posted' && (
-                      <div className="actions">
-                        <Button ref={retryRef} onClick={() => act(r, 'post')}>{t('retry')}</Button>
-                        <Link className="btn btn-secondary" to="/help">{t('contact_support')}</Link>
+        <div className="tax-table card">
+          <p className="tax-table-note"><Chip tone="draft" icon="✎">{t('ai_prepared_draft')}</Chip> <span className="hint">{t('codes_pending')}</span></p>
+          <div className="table-wrap">
+            <table className="table-compact tax-books">
+              <thead>
+                <tr>
+                  <th scope="col">{t('col_date')}</th>
+                  <th scope="col">{t('col_description')}</th>
+                  <th scope="col" className="num">{t('col_amount')}</th>
+                  <th scope="col">{t('col_proposal')}</th>
+                  <th scope="col">{t('col_status')}</th>
+                  <th scope="col">{t('col_actions')}</th>
+                </tr>
+              </thead>
+              <tbody>
+                {data.rows.map((r) => (
+                  <tr key={r.id} aria-busy={busyRow === r.id}>
+                    <td className="date-cell"><bdi dir="ltr">{formatDate(r.txn_date, lang)}</bdi></td>
+                    <td className="tax-desc">
+                      <bdi dir="auto">{r.description}</bdi>
+                      <div className="hint">
+                        {t('lang_label', { lang: t(`lang_${r.description_language}`) })}
+                        {r.manual_unverified && <> · <Chip tone="neutral">{t('manual_unverified')}</Chip></>}
+                        {r.treated_as_data && <> · <span>{t('treated_as_data')}</span></>}
+                        {r.consent_withdrawn && <> · <span>{t('consent_withdrawn_row')}</span></>}
                       </div>
-                    )}
-                  </div>
-                )}
-                {canAct && r.status === 'draft_not_posted' && rowError?.id !== r.id && <Button onClick={() => act(r, 'post')}>{t('retry')}</Button>}
-              </td>
-            </tr>
-          ))}
-        </Table>
-      )}
-      {canAct && bulkCount > 0 && (
-        <Button ref={bulkTrigger} onClick={openBulk} aria-label={t('bulk_open', { count: bulkCount })}>{t('bulk_open', { count: bulkCount })}</Button>
+                      <div className="hint">{t('source_ref', { system: r.source_system, id: '' })}<bdi dir="ltr">{r.source_id}</bdi></div>
+                    </td>
+                    <td className="num tax-amount">
+                      <bdi dir="ltr" className={r.direction === 'out' ? 'tax-out' : undefined}>{r.direction === 'out' ? '−' : ''}{formatAED(r.aed_amount_fils, lang)}</bdi>
+                      {r.fx && (
+                        <div className="hint tax-fx">
+                          {r.fx.missing ? t('fx_missing') : t('fx_line', { amount: (r.original_amount_fils / 100).toFixed(2), currency: r.original_currency, rate: r.fx.rate, source: r.fx.source, date: formatDate(r.fx.rate_date, lang) })}
+                          {r.fx.carried && <> · {t('fx_carried')}</>}
+                        </div>
+                      )}
+                    </td>
+                    <td className="tax-proposal">
+                      <span className="visually-hidden">{t('ai_prepared_draft')}. </span>
+                      <div className="tax-proposal-main">{catLabel(r.final.category ?? r.proposed.category)} · <bdi dir="ltr">{r.final.vat_code ?? r.proposed.vat_code ?? '—'}</bdi> · <bdi dir="ltr">{r.final.ledger_account ?? r.proposed.ledger_account ?? '—'}</bdi></div>
+                      {r.review_reason && (
+                        <div className="hint">
+                          <span aria-hidden="true">{r.review_reason === 'Matches your earlier choices' ? '↺ ' : '? '}</span>
+                          {r.review_reason === 'Matches your earlier choices' ? t('reason_matches') : t('reason_no_basis')}
+                        </div>
+                      )}
+                    </td>
+                    <td>
+                      {statusChip(r)}
+                      {r.reviewer && r.status === 'posted' && <div className="hint">{t('posted_by', { name: r.reviewer.name, role: r.reviewer.role, datetime: formatDateTime(r.reviewer.at, lang) })}</div>}
+                      {r.quarantine && <div className="hint">{t('quarantined', { name: r.quarantine.made_by, date: formatDate(r.quarantine.access_removed_on, lang) })}</div>}
+                    </td>
+                    <td className="tax-actions">
+                      {canAct && (r.status === 'proposed' || r.status === 'needs_review') && (
+                        <div className="tax-row-actions">
+                          {r.proposed.category && <Button className="btn-sm" onClick={() => act(r, 'accept')} disabled={busyRow === r.id}>{t('accept')}</Button>}
+                          <Button variant="secondary" className="btn-sm" onClick={() => { setCorrecting(r); setForm({ category: r.proposed.category ?? '', vat_code: r.proposed.vat_code ?? '', ledger_account: r.proposed.ledger_account ?? '' }) }}>{t('correct')}</Button>
+                          <Button variant="secondary" className="btn-sm tax-reject" onClick={() => act(r, 'reject')}>{t('reject')}</Button>
+                        </div>
+                      )}
+                      {canAct && r.status === 'quarantined' && isOwner && (
+                        <div className="tax-row-actions">
+                          <Button variant="secondary" className="btn-sm" onClick={() => setQuarantine({ decision: 'keep_and_review', ids: [r.id] })}>{t('keep_and_review')}</Button>
+                          <Button variant="danger" className="btn-sm" onClick={() => setQuarantine({ decision: 'discard', ids: [r.id] })}>{t('discard')}</Button>
+                        </div>
+                      )}
+                      {canAct && r.can_undo && <Button variant="link" onClick={() => act(r, 'undo')}>{t('undo')}</Button>}
+                      {rowError?.id === r.id && (
+                        <div role="alert">
+                          <p>{rowError.text}</p>
+                          {r.status === 'draft_not_posted' && (
+                            <div className="tax-row-actions">
+                              <Button ref={retryRef} className="btn-sm" onClick={() => act(r, 'post')}>{t('retry')}</Button>
+                              <Link className="btn btn-secondary btn-sm" to="/help">{t('contact_support')}</Link>
+                            </div>
+                          )}
+                        </div>
+                      )}
+                      {canAct && r.status === 'draft_not_posted' && rowError?.id !== r.id && <Button className="btn-sm" onClick={() => act(r, 'post')}>{t('retry')}</Button>}
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        </div>
       )}
 
       <Dialog open={!!bulk} title={t('bulk_title', { count: bulk?.count ?? 0 })} onClose={() => setBulk(null)} labelledBy="bulk-title">

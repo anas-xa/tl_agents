@@ -2,7 +2,8 @@ import { useEffect, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import { Link } from 'react-router-dom'
 import { useAuth } from '../../app/auth'
-import { Button, Chip, Field, Message, Panel, Table } from '../../components/ui'
+import { Icon } from '../../components/Icon'
+import { Button, Chip, Disclosure, Field, Message } from '../../components/ui'
 import { ApiError, patch, post } from '../../lib/api'
 import { formatAED, formatDate } from '../../lib/format'
 import { refusalText, useLang, when } from './parts'
@@ -39,6 +40,7 @@ export default function FilingPanel({ data, reload }: { data: RequestDetail; rel
   const mayRecord = !isDelegate || data.phase_b_on
   const approvedOnce = data.status === 'decided' && !!data.approved_by
   const owner = data.entitled_owner ?? ''
+  const stepN = data.status === 'open' ? 4 : 2
 
   const validate = (): Record<string, string> => {
     const e: Record<string, string> = {}
@@ -126,12 +128,20 @@ export default function FilingPanel({ data, reload }: { data: RequestDetail; rel
   }
 
   return (
-    <Panel title={t('filing_title')} id="filing">
+    <section className="ret-step ret-filing" id="filing" aria-labelledby="filing-title">
+      <div className="ret-step-head">
+        <span className="ret-step-num" aria-hidden="true">{stepN}</span>
+        <div>
+          <h2 id="filing-title"><span className="visually-hidden">{t('step_n', { n: stepN })}: </span>{t('filing_title')}</h2>
+          <p>{t('step_filing_desc')}</p>
+        </div>
+      </div>
+      <div className="ret-step-body">
       <div ref={bannerRef} tabIndex={-1} aria-live="polite">
-        <p>
-          <Chip tone={f.state === 'not_filed' ? 'neutral' : 'info'}>{t(`filed_state_${f.state}`)}</Chip>{' '}
+        <div className="ret-filing-state">
+          <Chip tone={f.state === 'not_filed' ? 'neutral' : 'info'}>{t(`filed_state_${f.state}`)}</Chip>
           {f.state !== 'not_filed' && <span className="hint">{t('not_verified_authority')}</span>}
-        </p>
+        </div>
         {banner()}
         {msg && <Message kind={msg.kind}>{msg.text}</Message>}
         {blocked && (
@@ -148,37 +158,50 @@ export default function FilingPanel({ data, reload }: { data: RequestDetail; rel
           {f.submitted_by ? <bdi>{f.submitted_by}</bdi> : t('not_submitted')}
           {f.acting_under_grant && <div className="hint">{t('recorded_under_grant', { delegate: f.acting_under_grant.delegate_name, owner: f.acting_under_grant.granting_owner_name, date: formatDate(f.acting_under_grant.grant_date, lang) })}</div>}
         </dd>
+        {f.authority_reference && (
+          <>
+            <dt>{t('reference')}</dt>
+            <dd><bdi dir="ltr">{f.authority_reference}</bdi></dd>
+          </>
+        )}
+        {f.receipt && (
+          <>
+            <dt>{t('receipt')}</dt>
+            <dd>{f.receipt.name} <span className="hint">· {t('receipt_hint')}</span></dd>
+          </>
+        )}
       </dl>
-      {f.authority_reference && (
-        <p>
-          {t('reference')}: <bdi dir="ltr">{f.authority_reference}</bdi>
-        </p>
-      )}
-      {f.receipt && <p className="hint">{f.receipt.name} · {t('receipt_hint')}</p>}
       {f.edited && <p className="hint">{t('edited', { date: when(f.edited.at, lang), name: f.edited.by })}</p>}
       <p className="hint">{t('read_back')}</p>
       {f.differences && f.differences.length > 0 && (
         <>
-          <Table headers={[t('differ_field'), t('differ_yours'), t('differ_ours')]}>
-            {f.differences.map((d) => (
-              <tr key={d.key}>
-                <th scope="row">{d.term?.[lang] ?? d.key}</th>
-                <td><bdi>{formatAED(d.declared_fils, lang)}</bdi></td>
-                <td><bdi>{formatAED(d.prepared_fils, lang)}</bdi></td>
-              </tr>
-            ))}
-          </Table>
-          <p>
-            <a className="btn btn-secondary" href="#figures">{t('review_difference')}</a>{' '}
-            <Link className="btn btn-secondary" to="/help">{t('ask_specialist')}</Link>{' '}
-            <Button variant="secondary" onClick={() => setMsg({ kind: 'info', text: t('recorded_declared') })}>{t('keep_declared')}</Button>
-          </p>
+          <div className="table-wrap">
+            <table className="table-compact ret-figures">
+              <thead>
+                <tr><th scope="col">{t('differ_field')}</th><th scope="col" className="num">{t('differ_yours')}</th><th scope="col" className="num">{t('differ_ours')}</th></tr>
+              </thead>
+              <tbody>
+                {f.differences.map((d) => (
+                  <tr key={d.key}>
+                    <th scope="row">{d.term?.[lang] ?? d.key}</th>
+                    <td className="num"><bdi dir="ltr">{formatAED(d.declared_fils, lang)}</bdi></td>
+                    <td className="num"><bdi dir="ltr">{formatAED(d.prepared_fils, lang)}</bdi></td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+          <div className="actions">
+            <a className="btn btn-secondary btn-sm" href="#figures">{t('review_difference')}</a>
+            <Link className="btn btn-secondary btn-sm" to="/help">{t('ask_specialist')}</Link>
+            <Button variant="secondary" className="btn-sm" onClick={() => setMsg({ kind: 'info', text: t('recorded_declared') })}>{t('keep_declared')}</Button>
+          </div>
         </>
       )}
       {f.state !== 'not_filed' && f.record_id && mayRecord && (
-        <p>
-          <Button variant="secondary" onClick={() => setEditing((v) => !v)}>{t('edit')}</Button>
-        </p>
+        <div className="actions">
+          <Button variant="secondary" className="btn-sm" onClick={() => setEditing((v) => !v)} aria-expanded={editing}>{t('edit')}</Button>
+        </div>
       )}
       {editing && (
         <div className="form">
@@ -188,25 +211,30 @@ export default function FilingPanel({ data, reload }: { data: RequestDetail; rel
           <Field label={t('figures_as_filed')} id="ed-net">
             <input id="ed-net" type="number" step="0.01" dir="ltr" value={net} onChange={(e) => setNet(e.target.value)} />
           </Field>
-          <Button onClick={saveEdit} disabled={saving}>{saving ? t('saving') : t('save')}</Button>
+          <div className="ret-form-actions">
+            <Button onClick={saveEdit} disabled={saving}>{saving ? t('saving') : t('save')}</Button>
+          </div>
         </div>
       )}
 
       {f.state === 'not_filed' && (
         <>
           <h3>{t('manual_heading')}</h3>
-          <ol className="steps">
+          <ol className="ret-filing-steps">
             <li>
-              {t('step_download')} <Chip tone="draft">{t('download_label')}</Chip>{' '}
-              <Button variant="secondary" onClick={download} disabled={!approvedOnce || !mayRecord}>{t('download')}</Button>
+              <span>{t('step_download')} <Chip tone="draft">{t('download_label')}</Chip></span>
+              <Button variant="secondary" className="btn-sm" onClick={download} disabled={!approvedOnce || !mayRecord}>
+                <Icon name="download" size={16} />
+                {t('download')}
+              </Button>
             </li>
-            <li>{t('step_open')}</li>
-            <li>{t('step_record')}</li>
+            <li><span>{t('step_open')}</span></li>
+            <li><span>{t('step_record')}</span></li>
           </ol>
           {!mayRecord && (
             <Message kind="info">
               {t('no_filing_right', { owner })}{' '}
-              {data.status === 'open' && <Button variant="secondary" onClick={() => post(`${base}/${data.request_id}/remind`).then(() => setMsg({ kind: 'success', text: t('owner_reminded') })).catch((e) => setMsg({ kind: 'info', text: refusalText(t, e) }))}>{t('request_approval')}</Button>}
+              {data.status === 'open' && <Button variant="secondary" className="btn-sm" onClick={() => post(`${base}/${data.request_id}/remind`).then(() => setMsg({ kind: 'success', text: t('owner_reminded') })).catch((e) => setMsg({ kind: 'info', text: refusalText(t, e) }))}>{t('request_approval')}</Button>}
             </Message>
           )}
           {mayRecord && approvedOnce && (
@@ -221,23 +249,25 @@ export default function FilingPanel({ data, reload }: { data: RequestDetail; rel
                   </ul>
                 </div>
               )}
-              <Field label={t('filed_date')} id="fl-filed_date" required hint={t('filed_date_hint')}>
-                <input id="fl-filed_date" type="date" max={today} value={filedDate} onChange={(e) => setFiledDate(e.target.value)} aria-invalid={!!errors.filed_date} />
-              </Field>
-              <Field label={t('reference')} id="fl-authority_reference" hint={t('reference_hint')}>
-                <input id="fl-authority_reference" dir="ltr" value={ref} onChange={(e) => setRef(e.target.value)} aria-invalid={!!errors.authority_reference} />
-              </Field>
-              <Field label={t('figures_as_filed')} id="fl-figures">
-                <input id="fl-figures" type="number" step="0.01" dir="ltr" value={net} onChange={(e) => setNet(e.target.value)} />
-              </Field>
-              <Field label={t('receipt')} id="fl-receipt" hint={t('receipt_hint')}>
-                <input id="fl-receipt" type="file" accept=".pdf,.png,.jpg,.jpeg" onChange={(e) => setReceipt(e.target.files?.[0] ?? null)} aria-invalid={!!errors.receipt} />
-              </Field>
-              <label className="check" id="fl-self_filed_confirmed">
-                <input type="checkbox" checked={selfFiled} onChange={(e) => setSelfFiled(e.target.checked)} /> {t('self_filed')}
+              <div className="ret-form-grid">
+                <Field label={t('filed_date')} id="fl-filed_date" required hint={t('filed_date_hint')}>
+                  <input id="fl-filed_date" type="date" max={today} value={filedDate} onChange={(e) => setFiledDate(e.target.value)} aria-invalid={!!errors.filed_date} />
+                </Field>
+                <Field label={t('reference')} id="fl-authority_reference" hint={t('reference_hint')}>
+                  <input id="fl-authority_reference" dir="ltr" value={ref} onChange={(e) => setRef(e.target.value)} aria-invalid={!!errors.authority_reference} />
+                </Field>
+                <Field label={t('figures_as_filed')} id="fl-figures">
+                  <input id="fl-figures" type="number" step="0.01" dir="ltr" value={net} onChange={(e) => setNet(e.target.value)} />
+                </Field>
+                <Field label={t('receipt')} id="fl-receipt" hint={t('receipt_hint')}>
+                  <input id="fl-receipt" type="file" accept=".pdf,.png,.jpg,.jpeg" onChange={(e) => setReceipt(e.target.files?.[0] ?? null)} aria-invalid={!!errors.receipt} />
+                </Field>
+              </div>
+              <label className="ret-confirm" id="fl-self_filed_confirmed">
+                <input type="checkbox" checked={selfFiled} onChange={(e) => setSelfFiled(e.target.checked)} /> <span>{t('self_filed')}</span>
               </label>
-              <div>
-                <Button type="submit" disabled={saving}>{saving ? t('saving') : t('record_filed')}</Button>{' '}
+              <div className="ret-form-actions">
+                <Button type="submit" disabled={saving}>{saving ? t('saving') : t('record_filed')}</Button>
                 <Button type="button" variant="secondary" disabled={saving} onClick={() => record('authority_unavailable')}>{t('record_unavailable')}</Button>
               </div>
             </form>
@@ -245,8 +275,7 @@ export default function FilingPanel({ data, reload }: { data: RequestDetail; rel
         </>
       )}
 
-      <details className="fixtures">
-        <summary>{t('fixtures_title')}</summary>
+      <Disclosure summary={t('fixtures_title')} className="ret-fixtures">
         {data.fixtures.map((x) => (
           <div key={x.state} className="fixture">
             <Chip tone="info">{t('demo_data')}</Chip> <strong>{x.label}</strong>
@@ -254,7 +283,8 @@ export default function FilingPanel({ data, reload }: { data: RequestDetail; rel
             {x.caution && <p className="hint">{x.caution}</p>}
           </div>
         ))}
-      </details>
-    </Panel>
+      </Disclosure>
+      </div>
+    </section>
   )
 }

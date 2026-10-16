@@ -2,12 +2,14 @@ import { useCallback, useEffect, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import { Link, useParams } from 'react-router-dom'
 import { useAuth } from '../../app/auth'
-import { Button, Chip, Dialog, Field, Message, Panel, Skeleton, Table } from '../../components/ui'
+import { Icon } from '../../components/Icon'
+import { Button, Chip, Dialog, Disclosure, Field, Message, PageHeader, Panel, Skeleton, StatCard } from '../../components/ui'
 import { ApiError, get, post } from '../../lib/api'
 import { formatAED, formatDate, iso } from '../../lib/format'
 import FilingPanel from './FilingPanel'
-import { DueDate, Hash, RequestChip, refusalText, returnTitle, useLang, when } from './parts'
+import { DaysChip, DueDate, Hash, RequestChip, refusalText, returnTitle, useLang, when } from './parts'
 import type { ApprovalRecord, PackLine, RequestDetail } from './types'
+import './approvals.css'
 
 interface DraftPack {
   review_status: string
@@ -163,24 +165,49 @@ export default function ApprovalScreen() {
   }
 
   const viewOnlyReason = !ent.allowed && open ? (ent.reason_code === 'RIGHT_SWITCHED_OFF' ? t('right_switched_off') : ent.reason_code === 'LEVEL_TOO_LOW_FOR_ACTION' ? t('level_too_low') : ent.reason_code === 'AUTHORITY_UNCLEAR' ? t('authority_unclear') : ent.reason_code === 'ON_HOLD' ? t('on_hold') : t('view_only')) : null
+  const keyLine = data.return_type === 'ct' ? 'tax' : 'net_vat'
+  const numeric = lines.filter((l) => l.value_fils !== null)
+  const textLines = lines.filter((l) => l.value_fils === null)
+  const statLines = numeric.length ? numeric : (data.amounts ?? []).map((a) => ({ key: a.key, term: a.term ?? { en: a.key, ar: a.key }, value_fils: a.value_fils }))
+  const basis = draft?.basis ?? (data.pack?.basis as DraftPack['basis'])
+  const companyName = data.company_name ? (lang === 'ar' ? data.company_name.ar : data.company_name.en) : null
+  const hasAside = open || !!approvedBy
 
   return (
     <div className="page approval-screen">
-      <p>
-        <Link to="/returns">← {t('title')}</Link>
-      </p>
-      <header>
-        {data.company_name && (
-          <p>
-            <bdi>{data.company_name.en}</bdi> · <bdi lang="ar">{data.company_name.ar}</bdi>
-          </p>
-        )}
-        <h1>{returnTitle(t, data)}</h1>
-        <p>
-          <RequestChip r={data} /> {data.is_demo && <Chip tone="info">{t('demo_data')}</Chip>}
-        </p>
-        <DueDate date={data.due_date} />
-      </header>
+      <Link className="ret-back" to="/returns">
+        <Icon name="chevron-start" size={18} className="flip-rtl" />
+        {t('title')}
+      </Link>
+      <PageHeader
+        eyebrow={companyName ? <bdi>{companyName}</bdi> : undefined}
+        title={returnTitle(t, data)}
+        subtitle={
+          <span className="ret-head-due">
+            <DueDate date={data.due_date} />
+            {open && <DaysChip date={data.due_date} />}
+          </span>
+        }
+        meta={
+          <>
+            <span className="ret-labels">
+              <RequestChip r={data} />
+              <Chip tone="draft">{t('ai_label')}</Chip>
+              {data.is_demo && <Chip tone="info">{t('demo_data')}</Chip>}
+            </span>
+            <span className="ret-note">
+              <Icon name="info" size={16} />
+              <span>{t('nothing_filed_auto')}</span>
+            </span>
+          </>
+        }
+        actions={
+          <Link className="btn btn-secondary" to={`/returns/${data.pack_id}`}>
+            <Icon name="file" size={18} />
+            {t('open_draft')}
+          </Link>
+        }
+      />
 
       <div aria-live="assertive">
         {banner && (
@@ -188,13 +215,13 @@ export default function ApprovalScreen() {
             <Message kind={banner.kind}>
               {banner.text}{' '}
               {banner.newId && (
-                <Link className="btn btn-secondary" to={`/returns/approve/${banner.newId}`} onClick={() => setBanner(null)}>
+                <Link className="btn btn-secondary btn-sm" to={`/returns/approve/${banner.newId}`} onClick={() => setBanner(null)}>
                   {t('show_new_version')}
                 </Link>
               )}
               {banner.retry && (
                 <>
-                  <Button variant="secondary" onClick={() => { setBanner(null); approveRef.current?.focus() }}>{t('try_again')}</Button>{' '}
+                  <Button variant="secondary" className="btn-sm" onClick={() => { setBanner(null); approveRef.current?.focus() }}>{t('try_again')}</Button>{' '}
                   <Button variant="link" onClick={() => setBanner(null)}>{t('close')}</Button>
                 </>
               )}
@@ -208,7 +235,7 @@ export default function ApprovalScreen() {
       {data.status === 'superseded' && !banner && (
         <Message kind="warning">
           {t('superseded_viewing', { id: (data.superseded_by || '').slice(-8) })}{' '}
-          {data.superseded_by && <Link className="btn btn-secondary" to={`/returns/approve/${data.superseded_by}`}>{t('show_new_version')}</Link>}
+          {data.superseded_by && <Link className="btn btn-secondary btn-sm" to={`/returns/approve/${data.superseded_by}`}>{t('show_new_version')}</Link>}
         </Message>
       )}
       {data.status === 'expired' && !banner && <Message kind="warning">{t('request_expired')}</Message>}
@@ -220,100 +247,142 @@ export default function ApprovalScreen() {
       {data.pack?.on_hold && <Message kind="warning">{t('on_hold')}</Message>}
       {viewOnlyReason && <Message kind="info">{viewOnlyReason}</Message>}
       {data.awaiting_owner && <Message kind="info">{t('awaiting_owner')}</Message>}
-      <Message kind="info">{t('nothing_filed_auto')}</Message>
 
-      <div className="two-col">
-        <div>
-          <Panel title={t('summary_title')} id="summary">
-            <ul className="stages">
+      <div className={`ret-layout ${hasAside ? '' : 'ret-layout-single'}`}>
+        <section className="ret-step ret-review" id="figures" aria-labelledby="step1-title">
+          <div className="ret-step-head">
+            <span className="ret-step-num" aria-hidden="true">1</span>
+            <div>
+              <h2 id="step1-title"><span className="visually-hidden">{t('step_n', { n: 1 })}: </span>{t('step1_title')}</h2>
+              <p>{reviewer ? t('actor_line', { name: reviewer }) : t('actor_line_none')}</p>
+            </div>
+          </div>
+          <div className="ret-step-body">
+            <ul className="ret-stages" aria-label={t('summary_title')}>
               <li><Chip tone="draft">{t('stage_draft')}</Chip></li>
               <li>{notReviewed ? <Chip tone="attention">{t('stage_not_reviewed')}</Chip> : <Chip tone="ok">{t('stage_review', { status: (draft?.review_status_label ?? data.human_review_label)?.[lang] ?? '' })}</Chip>}</li>
               <li>{data.status === 'decided' && data.approval_valid ? <Chip tone="ok">{t('stage_approved')}</Chip> : <Chip tone="neutral">{t('stage_not_approved')}</Chip>}</li>
             </ul>
-            <p><Chip tone="draft">{t('ai_label')}</Chip></p>
-            <p>{reviewer ? t('actor_line', { name: reviewer }) : t('actor_line_none')}</p>
-            <p>{data.return_type === 'vat' ? t('summary_vat', { period: iso(data.period_id), out: amount('output_vat'), inp: amount('input_vat'), net: amount('net_vat') }) : t('summary_ct', { period: iso(data.period_id), tax: amount('tax') })}</p>
-            <p className="hint">
-              {t('version_label', { v: data.pack_version, hash: '' })}<Hash value={data.draft_content_hash} /> · {when(data.created_at, lang)}
-            </p>
-            <Link to={`/returns/${data.pack_id}`}>{t('open_draft')}</Link>
-          </Panel>
-          <Panel title={t('figures_title')} id="figures">
-            <Table headers={[t('differ_field'), t('differ_ours')]}>
-              {lines.map((l) => (
-                <tr key={l.key}>
-                  <td>{l.term?.[lang] ?? l.key}</td>
-                  <td><bdi>{l.value_fils !== null ? formatAED(l.value_fils, lang) : l.text}</bdi></td>
-                </tr>
+            <h3 className="visually-hidden">{t('key_figures')}</h3>
+            <div className="stat-grid">
+              {statLines.map((l) => (
+                <StatCard
+                  key={l.key}
+                  className={l.key === keyLine ? 'ret-key' : undefined}
+                  label={l.term?.[lang] ?? l.key}
+                  value={<bdi dir="ltr">{formatAED(l.value_fils, lang)}</bdi>}
+                />
               ))}
-            </Table>
-          </Panel>
-          <details className="panel">
-            <summary>{t('source_title')}</summary>
-            <p>{draft ? t('source_count', { n: draft.sources.length }) : data.pack ? t('source_count', { n: data.pack.sources_count }) : t('source_not_available')}</p>
-            {draft?.sources.slice(0, 20).map((s, i) => (
-              <div key={i} className="hint"><bdi>{String(s.source_id ?? s.source ?? '')}</bdi> {s.tax_point_date ? formatDate(String(s.tax_point_date), lang) : ''}</div>
-            ))}
-          </details>
-          <details className="panel">
-            <summary>{t('basis_title')}</summary>
-            {(draft?.basis ?? (data.pack?.basis as DraftPack['basis']))?.formula && <p>{(draft?.basis ?? (data.pack?.basis as DraftPack['basis']))?.formula}</p>}
-            <p>{t('rule_versions', { v: data.rule_version ?? '' })}</p>
-          </details>
-        </div>
-        <div>
-          {approvedBy && <RecordPanel a={approvedBy} filingBy={data.filing.submitted_by} />}
-          {open && (
-            <Panel title={t('approve_title')} id="act">
-              {notReviewed && (
-                <Message kind="warning">
-                  <strong>{t('informed_title')}</strong> {t('informed_body')}
-                </Message>
-              )}
-              {notReviewed && (
-                <label className="check">
-                  <input type="checkbox" checked={informed} disabled={!ent.allowed} onChange={(e) => setInformed(e.target.checked)} /> {t('informed_tick')}
-                </label>
-              )}
-              <label className="check">
-                <input type="checkbox" checked={reviewed} disabled={!ent.allowed} onChange={(e) => setReviewed(e.target.checked)} /> {t('tick_reviewed')}
-              </label>
-              <div className="sticky-actions">
-                <Button ref={approveRef} onClick={() => setConfirmOpen(true)} disabled={approveDisabled} aria-describedby={viewOnlyReason ? 'approve-reason' : undefined}>
-                  {t('approve')}
-                </Button>{' '}
-                <Button variant="secondary" onClick={() => setChangesOpen(true)} disabled={!ent.allowed || busy}>
-                  {t('request_changes')}
-                </Button>{' '}
-                <Link className="btn btn-link" to="/help">{t('escalate')}</Link>
-                {isDelegate && (
-                  <>
-                    {' '}<Button variant="secondary" onClick={remind}>{t('remind_owner')}</Button>
-                  </>
-                )}
-              </div>
-              {viewOnlyReason && <p id="approve-reason" className="hint">{viewOnlyReason}</p>}
-              <p className="hint">{t('escalate_note')}</p>
-            </Panel>
-          )}
-          <FilingPanel data={data} reload={load} />
-          {data.history.length > 0 && (
-            <Panel title={t('history_title')} id="act-history">
-              <Table headers={[t('history_who'), t('history_role'), t('history_decision'), t('history_when'), t('history_version'), t('history_reason')]}>
-                {data.history.map((h) => (
-                  <tr key={h.approval_id}>
-                    <td><bdi>{h.approver_name}</bdi></td>
-                    <td>{t(`role_${h.display_role}`, { defaultValue: h.display_role })}</td>
-                    <td>{t(`dec_${h.decision}`)}{h.status === 'pending_joint' ? ` · ${t('st_pending_joint')}` : ''}</td>
-                    <td>{when(h.decided_at, lang)}</td>
-                    <td>{h.pack_version} · <Hash value={h.data_version_hash} /></td>
-                    <td><bdi dir="auto">{h.reason ?? ''}</bdi></td>
-                  </tr>
+            </div>
+            {textLines.length > 0 && (
+              <dl className="kv ret-textlines">
+                {textLines.map((l) => (
+                  <div key={l.key} style={{ display: 'contents' }}>
+                    <dt>{l.term?.[lang] ?? l.key}</dt>
+                    <dd><bdi>{l.text}</bdi></dd>
+                  </div>
                 ))}
-              </Table>
-            </Panel>
-          )}
+              </dl>
+            )}
+            <p className="hint">{data.return_type === 'vat' ? t('summary_vat', { period: iso(data.period_id), out: amount('output_vat'), inp: amount('input_vat'), net: amount('net_vat') }) : t('summary_ct', { period: iso(data.period_id), tax: amount('tax') })}</p>
+            <div className="ret-meta-line">
+              <span>{t('version_label', { v: data.pack_version, hash: '' })}<Hash value={data.draft_content_hash} /></span>
+              <span className="nowrap">{when(data.created_at, lang)}</span>
+            </div>
+            <Disclosure summary={t('source_title')}>
+              <p>{draft ? t('source_count', { n: draft.sources.length }) : data.pack ? t('source_count', { n: data.pack.sources_count }) : t('source_not_available')}</p>
+              <div className="ret-sources">
+                {draft?.sources.slice(0, 20).map((s, i) => (
+                  <div key={i} className="hint"><bdi>{String(s.source_id ?? s.source ?? '')}</bdi> {s.tax_point_date ? formatDate(String(s.tax_point_date), lang) : ''}</div>
+                ))}
+              </div>
+            </Disclosure>
+            <Disclosure summary={t('basis_title')}>
+              {basis?.formula && <p>{basis.formula}</p>}
+              <p>{t('rule_versions', { v: data.rule_version ?? '' })}</p>
+            </Disclosure>
+          </div>
+        </section>
+
+        {hasAside && (
+          <div className={`ret-aside ${open ? 'ret-aside-sticky' : ''}`}>
+            {open && (
+              <section className="ret-step ret-act" id="act" aria-labelledby="act-title">
+                <div className="ret-step-head">
+                  <div>
+                    <h2 id="act-title">{t('approve_title')}</h2>
+                  </div>
+                </div>
+                <div className="ret-step-body">
+                  <div className="ret-substep">
+                    <span className="ret-step-num" aria-hidden="true">2</span>
+                    <h3><span className="visually-hidden">{t('step_n', { n: 2 })}: </span>{t('step2_title')}</h3>
+                  </div>
+                  {notReviewed && (
+                    <Message kind="warning">
+                      <strong>{t('informed_title')}</strong> {t('informed_body')}
+                    </Message>
+                  )}
+                  <div className="ret-confirms">
+                    {notReviewed && (
+                      <label className="ret-confirm">
+                        <input type="checkbox" checked={informed} disabled={!ent.allowed} onChange={(e) => setInformed(e.target.checked)} /> <span>{t('informed_tick')}</span>
+                      </label>
+                    )}
+                    <label className="ret-confirm">
+                      <input type="checkbox" checked={reviewed} disabled={!ent.allowed} onChange={(e) => setReviewed(e.target.checked)} /> <span>{t('tick_reviewed')}</span>
+                    </label>
+                  </div>
+                  <div className="ret-substep">
+                    <span className="ret-step-num" aria-hidden="true">3</span>
+                    <h3><span className="visually-hidden">{t('step_n', { n: 3 })}: </span>{t('step3_title')}</h3>
+                  </div>
+                  <div className="ret-act-buttons sticky-actions">
+                    <Button ref={approveRef} onClick={() => setConfirmOpen(true)} disabled={approveDisabled} aria-describedby={viewOnlyReason ? 'approve-reason' : undefined}>
+                      <Icon name="check" size={18} />
+                      {t('approve')}
+                    </Button>
+                    <Button variant="secondary" onClick={() => setChangesOpen(true)} disabled={!ent.allowed || busy}>
+                      {t('request_changes')}
+                    </Button>
+                  </div>
+                  <div className="ret-act-secondary">
+                    <Link className="btn btn-link" to="/help">{t('escalate')}</Link>
+                    {isDelegate && <Button variant="secondary" className="btn-sm" onClick={remind}>{t('remind_owner')}</Button>}
+                  </div>
+                  {viewOnlyReason && <p id="approve-reason" className="hint">{viewOnlyReason}</p>}
+                  <p className="hint">{t('escalate_note')}</p>
+                </div>
+              </section>
+            )}
+            {approvedBy && <RecordPanel a={approvedBy} filingBy={data.filing.submitted_by} />}
+          </div>
+        )}
+
+        <div className="ret-filing-wrap">
+          <FilingPanel data={data} reload={load} />
         </div>
+
+        {data.history.length > 0 && (
+          <div className="ret-hist">
+            <Panel title={t('history_title')} id="act-history">
+              <ul className="ret-acts">
+                {data.history.map((h) => (
+                  <li key={h.approval_id}>
+                    <div className="ret-acts-top">
+                      <span><bdi>{h.approver_name}</bdi> <span className="muted">· {t(`role_${h.display_role}`, { defaultValue: h.display_role })}</span></span>
+                      <span><Chip tone={h.decision === 'approve' ? 'ok' : 'attention'}>{t(`dec_${h.decision}`)}{h.status === 'pending_joint' ? ` · ${t('st_pending_joint')}` : ''}</Chip></span>
+                    </div>
+                    <div className="hint">
+                      <span className="nowrap">{when(h.decided_at, lang)}</span> · {t('history_version')} {h.pack_version} · <Hash value={h.data_version_hash} />
+                    </div>
+                    {h.reason && <div><span className="muted">{t('history_reason')}: </span><bdi dir="auto">{h.reason}</bdi></div>}
+                  </li>
+                ))}
+              </ul>
+            </Panel>
+          </div>
+        )}
       </div>
 
       <Dialog open={confirmOpen} title={t('approve_title')} onClose={() => setConfirmOpen(false)} labelledBy="approve-dialog-title">
@@ -344,7 +413,7 @@ function RecordPanel({ a, filingBy }: { a: ApprovalRecord; filingBy: string | nu
   const { t } = useTranslation('approvals')
   const lang = useLang()
   return (
-    <Panel title={t('record_title')} id="record">
+    <Panel title={t('record_title')} id="record" className="ret-record">
       <dl className="record">
         <dt>{t('approved_by')}</dt>
         <dd>
@@ -352,7 +421,7 @@ function RecordPanel({ a, filingBy }: { a: ApprovalRecord; filingBy: string | nu
             t('approved_by_delegate', { delegate: a.approver_name, owner: a.delegation_basis.granting_owner_name ?? '', id: a.delegation_basis.grant_id })
           ) : (
             <>
-              <bdi>{a.approver_name}</bdi> · {t(`role_${a.display_role}`, { defaultValue: a.display_role })}
+              <bdi>{a.approver_name}</bdi> <span className="muted">· {t(`role_${a.display_role}`, { defaultValue: a.display_role })}</span>
             </>
           )}
         </dd>
@@ -366,16 +435,22 @@ function RecordPanel({ a, filingBy }: { a: ApprovalRecord; filingBy: string | nu
         <dd><Hash value={a.data_version_hash} /></dd>
         <dt>{t('record_valid_until')}</dt>
         <dd>{when(a.valid_until, lang)} {a.status !== 'active' && <Chip tone="attention">{t(a.status === 'expired' ? 'st_approval_expired' : a.status === 'superseded' ? 'st_superseded' : 'st_not_approved')}</Chip>}</dd>
-        <dt>{t('record_id')}</dt>
-        <dd><bdi dir="ltr">{a.approval_id}</bdi></dd>
-        <dt>{t('record_wording')}</dt>
-        <dd><bdi dir="ltr">{a.declaration_wording_version_id}</bdi></dd>
-        <dt>{t('record_method')}</dt>
-        <dd>{a.channel} · {a.assurance_level}</dd>
       </dl>
-      {a.valid_until && <p>{t('validity_line', { date: formatDate(a.valid_until, lang) })}</p>}
-      <p className="hint">{t('platform_line')}</p>
-      <p className="hint">{t('record_permission')}</p>
+      <Disclosure summary={t('all_versions')}>
+        <dl className="record">
+          <dt>{t('record_id')}</dt>
+          <dd><bdi dir="ltr">{a.approval_id}</bdi></dd>
+          <dt>{t('record_wording')}</dt>
+          <dd><bdi dir="ltr">{a.declaration_wording_version_id}</bdi></dd>
+          <dt>{t('record_method')}</dt>
+          <dd>{a.channel} · {a.assurance_level}</dd>
+        </dl>
+      </Disclosure>
+      <div className="ret-record-foot">
+        {a.valid_until && <p>{t('validity_line', { date: formatDate(a.valid_until, lang) })}</p>}
+        <p className="hint">{t('platform_line')}</p>
+        <p className="hint">{t('record_permission')}</p>
+      </div>
     </Panel>
   )
 }

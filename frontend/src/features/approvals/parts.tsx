@@ -1,7 +1,7 @@
 import { useTranslation } from 'react-i18next'
 import { Chip, Ident } from '../../components/ui'
 import { ApiError } from '../../lib/api'
-import { formatDate, formatDateTime, iso } from '../../lib/format'
+import { daysLeftLabel, daysLeftTier, formatDate, formatDateTime, iso } from '../../lib/format'
 import type { RequestRow } from './types'
 
 export function useLang(): 'ar' | 'en' {
@@ -80,4 +80,24 @@ export function refusalText(t: (k: string, o?: Record<string, unknown>) => strin
   if (map[code]) return t(map[code])
   const ref = e instanceof ApiError && e.reference ? ` ${t('reference_id', { ref: e.reference })}` : ''
   return t('generic_error') + ref
+}
+
+/** Whole days from today (GST) to a due date (YYYY-MM-DD); null when there is no date. */
+export function daysUntil(date: string | null | undefined): number | null {
+  if (!date) return null
+  const today = new Date(Date.now() + 4 * 3600 * 1000).toISOString().slice(0, 10)
+  return Math.round((Date.parse(date.slice(0, 10)) - Date.parse(today)) / 86400000)
+}
+
+/** Days-left chip for a due date: icon + text, tone by urgency. Renders nothing without a date. */
+export function DaysChip({ date }: { date: string | null | undefined }) {
+  const lang = useLang()
+  const days = daysUntil(date)
+  if (days === null) return null
+  const tier = daysLeftTier(days)
+  return (
+    <span className="ret-days">
+      <Chip tone={tier === 'unknown' ? 'neutral' : tier} icon={days < 0 ? '!' : '◷'}>{daysLeftLabel(days, lang)}</Chip>
+    </span>
+  )
 }

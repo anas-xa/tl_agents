@@ -30,6 +30,17 @@ const en = {
   signer: 'Signed by {{name}}, licence no. {{number}}',
   no_code: 'No verification code',
   log: { event: 'Event', by: 'By', at: 'When', events: { opened: 'Opened', downloaded: 'Downloaded', exported: 'Exported', shared: 'Shared' } },
+  ui: {
+    subtitle: 'Your documents in Arabic and English from one record. Share a verification code and anyone can check a document without signing in.',
+    back: 'All documents',
+    verify: 'Verify',
+    issued_on: 'Issued {{date}}',
+    version_n: 'Version {{n}}',
+    preview: 'Preview',
+    details: 'Details',
+    reference: 'Reference',
+    count: '{{n}} documents',
+  },
 }
 
 const ar = {
@@ -61,6 +72,17 @@ const ar = {
   signer: 'وقّعه {{name}}، رقم الترخيص {{number}}',
   no_code: 'لا يوجد رمز تحقق',
   log: { event: 'الحدث', by: 'بواسطة', at: 'الوقت', events: { opened: 'فُتح', downloaded: 'نُزّل', exported: 'صُدّر', shared: 'شورك' } },
+  ui: {
+    subtitle: 'مستنداتك بالعربية والإنجليزية من سجل واحد. شارك رمز التحقق ليتمكن أي شخص من التحقق من المستند دون تسجيل الدخول.',
+    back: 'كل المستندات',
+    verify: 'تحقّق',
+    issued_on: 'صدر في {{date}}',
+    version_n: 'الإصدار {{n}}',
+    preview: 'معاينة',
+    details: 'التفاصيل',
+    reference: 'المرجع',
+    count: '{{n}} مستندات',
+  },
 }
 
 i18n.addResourceBundle('en', 'documents', en)
