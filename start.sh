@@ -12,16 +12,24 @@ PY="$(command -v python3.13 || command -v python3.12 || command -v python3 || tr
 need node "Install Node.js 20 or newer from https://nodejs.org/"
 need npm "Install Node.js 20 or newer from https://nodejs.org/"
 
-if [ ! -x backend/.venv-local/bin/uvicorn ]; then
-  echo "==> Installing the backend (first run only)"
-  "$PY" -m venv backend/.venv-local
+# Everything below re-runs automatically after a `git pull` that changed dependencies or source files.
+STAMP=backend/.venv-local/.installed
+if [ ! -x backend/.venv-local/bin/uvicorn ] || [ ! -f "$STAMP" ] || [ backend/pyproject.toml -nt "$STAMP" ]; then
+  echo "==> Installing the backend"
+  [ -x backend/.venv-local/bin/python ] || "$PY" -m venv backend/.venv-local
   backend/.venv-local/bin/python -m pip install --quiet --upgrade pip
   backend/.venv-local/bin/python -m pip install --quiet -e backend
+  touch "$STAMP"
 fi
 
-if [ ! -f frontend/dist/index.html ] || [ -n "$(find frontend/src frontend/index.html -newer frontend/dist/index.html -print -quit 2>/dev/null)" ]; then
+if [ ! -d frontend/node_modules ] || [ frontend/package-lock.json -nt frontend/node_modules/.package-lock.json ]; then
+  echo "==> Installing portal packages"
+  (cd frontend && npm ci --no-audit --no-fund --loglevel=error)
+fi
+
+if [ ! -f frontend/dist/index.html ] || [ -n "$(find frontend/src frontend/index.html frontend/package-lock.json -newer frontend/dist/index.html -print -quit 2>/dev/null)" ]; then
   echo "==> Building the portal"
-  (cd frontend && { [ -d node_modules ] || npm ci --no-audit --no-fund --loglevel=error; } && npx vite build --logLevel error)
+  (cd frontend && npx vite build --logLevel error)
 fi
 
 export QEONIX_SERVE_FRONTEND=true

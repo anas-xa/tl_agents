@@ -12,17 +12,33 @@ foreach ($c in @("py -3.13", "py -3.12", "python")) {
 if (-not $py) { Write-Host "Python 3.12 or newer is required: https://www.python.org/downloads/"; exit 1 }
 if (-not (Get-Command node -ErrorAction SilentlyContinue)) { Write-Host "Node.js 20 or newer is required: https://nodejs.org/"; exit 1 }
 
-if (-not (Test-Path "backend\.venv-local\Scripts\uvicorn.exe")) {
-  Write-Host "==> Installing the backend (first run only)"
-  & cmd /c "$py -m venv backend\.venv-local"
+# Everything below re-runs automatically after a `git pull` that changed dependencies or source files.
+function Newer($a, $b) { (Test-Path $a) -and (-not (Test-Path $b) -or (Get-Item $a).LastWriteTime -gt (Get-Item $b).LastWriteTime) }
+$stamp = "backend\.venv-local\.installed"
+if (-not (Test-Path "backend\.venv-local\Scripts\uvicorn.exe") -or (Newer "backend\pyproject.toml" $stamp)) {
+  Write-Host "==> Installing the backend"
+  if (-not (Test-Path "backend\.venv-local\Scripts\python.exe")) { & cmd /c "$py -m venv backend\.venv-local" }
   & backend\.venv-local\Scripts\python.exe -m pip install --quiet --upgrade pip
   & backend\.venv-local\Scripts\python.exe -m pip install --quiet -e backend
+  New-Item -ItemType File -Force $stamp | Out-Null
 }
 
-if (-not (Test-Path "frontend\dist\index.html")) {
+if (-not (Test-Path "frontend\node_modules") -or (Newer "frontend\package-lock.json" "frontend\node_modules\.package-lock.json")) {
+  Write-Host "==> Installing portal packages"
+  Push-Location frontend
+  npm ci --no-audit --no-fund --loglevel=error
+  Pop-Location
+}
+
+$dist = "frontend\dist\index.html"
+$changed = -not (Test-Path $dist)
+if (-not $changed) {
+  $built = (Get-Item $dist).LastWriteTime
+  $changed = [bool](Get-ChildItem frontend\src, frontend\index.html, frontend\package-lock.json -Recurse -File | Where-Object { $_.LastWriteTime -gt $built } | Select-Object -First 1)
+}
+if ($changed) {
   Write-Host "==> Building the portal"
   Push-Location frontend
-  if (-not (Test-Path node_modules)) { npm ci --no-audit --no-fund --loglevel=error }
   npx vite build --logLevel error
   Pop-Location
 }
