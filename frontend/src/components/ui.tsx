@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef, useState, type ReactNode } from 'react'
+import { useMemo, useRef, useState, type ReactNode } from 'react'
 import { useTranslation } from 'react-i18next'
 import { Icon, type IconName } from './Icon'
 
@@ -211,13 +211,11 @@ export function Tabs<T extends string>({ tabs, value, onChange, label, idPrefix 
 
 /** Client-side paging for long lists: returns the current page slice; resets to page 1 when the list changes length. */
 export function usePaged<T>(items: T[], pageSize = 25) {
-  const [page, setPage] = useState(1)
+  const [requested, setPage] = useState(1)
   const pages = Math.max(1, Math.ceil(items.length / pageSize))
-  useEffect(() => {
-    if (page > pages) setPage(1)
-  }, [page, pages])
+  const page = Math.min(requested, pages) // a shorter list (new filter) never leaves an empty page
   const pageItems = useMemo(() => items.slice((page - 1) * pageSize, page * pageSize), [items, page, pageSize])
-  return { page: Math.min(page, pages), pages, setPage, pageItems, total: items.length, pageSize }
+  return { page, pages, setPage, pageItems, total: items.length, pageSize }
 }
 
 export function Pagination({ page, pages, total, pageSize, onPage }: { page: number; pages: number; total: number; pageSize: number; onPage: (p: number) => void }) {

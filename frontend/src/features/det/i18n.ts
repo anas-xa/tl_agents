@@ -177,6 +177,12 @@ const en = {
   k12_complete_manual: 'Complete via manual path only',
   k12_error: 'We could not load your setup checklist. Your data is safe. Try again.',
   k12_exited: 'Your subscription ended before the setup window closed.',
+  // page chrome and shared workspace pieces (UI refresh)
+  eyebrow: 'Pilot programme oversight',
+  tabs_label: 'DET dashboard sections',
+  ws_next: 'Next step',
+  int_live_n: '{{n}} of {{m}} switched on',
+  res_pass_n: '{{n}} of {{m}} pass',
 }
 
 const ar: typeof en = {
@@ -345,6 +351,12 @@ const ar: typeof en = {
   k12_complete_manual: 'اكتمل عبر المسار اليدوي فقط',
   k12_error: 'تعذّر تحميل قائمة الإعداد. بياناتك محفوظة. حاول مرة أخرى.',
   k12_exited: 'انتهى اشتراكك قبل انتهاء مهلة الإعداد.',
+  // page chrome and shared workspace pieces (UI refresh)
+  eyebrow: 'الإشراف على البرنامج التجريبي',
+  tabs_label: 'أقسام لوحة الدائرة',
+  ws_next: 'الخطوة التالية',
+  int_live_n: '{{n}} من {{m}} مفعّلة',
+  res_pass_n: 'اجتاز {{n}} من {{m}}',
 }
 
 i18n.addResourceBundle('en', 'det', en)

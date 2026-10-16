@@ -1,8 +1,11 @@
 import { useCallback, useEffect, useState } from 'react'
 import { useTranslation } from 'react-i18next'
+import { Icon } from '../../components/Icon'
 import { Button, Chip, Empty, Field, Message, Panel, Skeleton, Table } from '../../components/ui'
 import { get, post } from '../../lib/api'
 import { formatDateTime, formatNumber } from '../../lib/format'
+import { formatDubaiDate } from '../det/headerMeta'
+import { MetaLine } from '../det/ui'
 import { useLang } from './parts'
 import type { ComplianceView } from './types'
 
@@ -63,7 +66,7 @@ export default function ComplianceTab() {
   const stale = data.job.stale
   return (
     <div className="compliance-tab">
-      <Message kind="info">{t('comp_readonly')}</Message>
+      <p className="det-note"><Icon name="lock" size={16} />{t('comp_readonly')}</p>
       {stale && (
         <div role="alert" className="message message-warning">
           <span aria-hidden="true" className="message-icon">!</span>
@@ -75,49 +78,62 @@ export default function ComplianceTab() {
       )}
       {!data.flow_enabled && <Message kind="warning">{t('flow_status_off')}</Message>}
       {data.flow_enabled && data.wave_exit_blocked && <Message kind="warning">{t('wave_blocked')}</Message>}
-      <div className="kpi-strip">
-        <Panel title={`K23 · ${t('k23_name')}`} id="k23" tone={k23.status === 'breach' ? 'warning' : undefined}>
+      <div className="det-two" style={{ marginBottom: 20 }}>
+        <section className="card det-kpi" id="k23" aria-labelledby="k23-title">
+          <header className="det-kpi-head"><h3 id="k23-title" className="det-cap">{t('k23_name')}</h3><span className="det-kpi-code"><bdi dir="ltr">K23</bdi></span></header>
           {k23.status === 'no_data' ? (
             <>
-              <p className="kpi-value" aria-label={t('k23_sr')}><Chip tone="neutral" icon="i">{t('no_data')}</Chip></p>
-              <p>{t('k23_no_data')}</p>
+              <p className="det-kpi-state" aria-label={t('k23_sr')}><Chip tone="neutral" icon="i">{t('no_data')}</Chip></p>
+              <p className="det-kpi-target">{t('k23_no_data')}</p>
             </>
           ) : (
             <>
-              <p className="kpi-value"><bdi>{formatNumber(k23.value_pct, lang, 1)}%</bdi> {k23.status === 'breach' ? <Chip tone="urgent" icon="⚠">{t('breach_count', { n: k23.breach_count })}</Chip> : <Chip tone="ok">{t('k23_pass')}</Chip>}</p>
-              {k23.status === 'breach' && <p><a href="#exceptions">{t('k23_breach', { x: k23.breach_count, y: k23.denominator })}</a></p>}
+              <p className="det-kpi-value"><bdi dir="ltr">{formatNumber(k23.value_pct, lang, 1)}%</bdi></p>
+              <div className="det-kpi-chips">
+                {k23.status === 'breach' ? <Chip tone="urgent" icon="⚠">{t('breach_count', { n: k23.breach_count })}</Chip> : <Chip tone="ok">{t('k23_pass')}</Chip>}
+                {stale && <Chip tone="attention">{t('stale_tag')}</Chip>}
+              </div>
+              {k23.status === 'breach' && <p className="det-kpi-target"><a href="#exceptions">{t('k23_breach', { x: k23.breach_count, y: k23.denominator })}</a></p>}
             </>
           )}
-          {stale && <Chip tone="attention">{t('stale_tag')}</Chip>}
-          <p className="hint">{t('k23_definition')}</p>
-          <p className="hint">{t('self_reported', { n: k23.self_reported_count })} · {t('releases', { n: k23.release_approvals })} · {t('blocked_attempts', { n: k23.blocked_attempts })}</p>
-        </Panel>
-        <Panel title={`K24 · ${t('k24_name')}`} id="k24">
-          {k24.mean_hours === null ? <p>{t('k24_no_data')}</p> : <p className="kpi-value"><bdi>{formatNumber(k24.mean_hours, lang, 1)}</bdi></p>}
-          <p>{t('k24_waiting', { n: k24.undecided_count })}</p>
-          {k24.target_hours === null && <p className="hint">{t('k24_no_target')}</p>}
-          {stale && <Chip tone="attention">{t('stale_tag')}</Chip>}
-          <Button variant="link" onClick={() => setAsTable((v) => !v)}>{asTable ? t('show_chart') : t('show_table')}</Button>
+          {k23.status === 'no_data' && stale && <div className="det-kpi-chips"><Chip tone="attention">{t('stale_tag')}</Chip></div>}
+          <p className="det-kpi-target">{t('k23_definition')}</p>
+          <div className="det-kpi-foot" style={{ paddingBlock: 10 }}>
+            <MetaLine items={[t('self_reported', { n: k23.self_reported_count }), t('releases', { n: k23.release_approvals }), t('blocked_attempts', { n: k23.blocked_attempts })]} />
+          </div>
+        </section>
+        <section className="card det-kpi" id="k24" aria-labelledby="k24-title">
+          <header className="det-kpi-head"><h3 id="k24-title" className="det-cap">{t('k24_name')}</h3><span className="det-kpi-code"><bdi dir="ltr">K24</bdi></span></header>
+          {k24.mean_hours === null ? <p className="det-kpi-state">{t('k24_no_data')}</p> : <p className="det-kpi-value"><bdi dir="ltr">{formatNumber(k24.mean_hours, lang, 1)}</bdi></p>}
+          <div className="det-kpi-chips">
+            <Chip tone={k24.undecided_count ? 'attention' : 'neutral'} icon="◷">{t('k24_waiting', { n: k24.undecided_count })}</Chip>
+            {stale && <Chip tone="attention">{t('stale_tag')}</Chip>}
+          </div>
+          {k24.target_hours === null && <p className="det-kpi-target">{t('k24_no_target')}</p>}
           {asTable ? (
+            <div className="table-compact det-table">
             <Table headers={[t('filter_role'), t('avg_hours')]}>
               {Object.entries(k24.breakdown).map(([k, v]) => (
-                <tr key={k}><td>{t(`k24_bd_${k}`)}</td><td><bdi>{v === null ? '—' : formatNumber(v, lang, 1)}</bdi></td></tr>
+                <tr key={k}><td>{t(`k24_bd_${k}`)}</td><td className="num"><bdi dir="ltr">{v === null ? '—' : formatNumber(v, lang, 1)}</bdi></td></tr>
               ))}
             </Table>
+            </div>
           ) : (
-            <ul className="bars" aria-label={t('k24_name')}>
+            <dl className="det-kpi-kv" aria-label={t('k24_name')}>
               {Object.entries(k24.breakdown).map(([k, v]) => (
-                <li key={k}>
-                  <span>{t(`k24_bd_${k}`)}</span>{' '}
-                  <span className="bar" style={{ display: 'inline-block', inlineSize: `${Math.min(100, (v ?? 0) * 2)}%`, blockSize: 8, background: 'currentColor' }} aria-hidden="true" />{' '}
-                  <bdi>{v === null ? '—' : formatNumber(v, lang, 1)}</bdi>
-                </li>
+                <div key={k} style={{ display: 'contents' }}>
+                  <dt>{t(`k24_bd_${k}`)}<span className="det-bar" aria-hidden="true" style={{ maxWidth: 'none', marginTop: 4 }}><span style={{ inlineSize: `${Math.min(100, (v ?? 0) * 2)}%` }} /></span></dt>
+                  <dd><bdi dir="ltr">{v === null ? '—' : formatNumber(v, lang, 1)}</bdi></dd>
+                </div>
               ))}
-            </ul>
+            </dl>
           )}
-        </Panel>
+          <div className="det-kpi-foot">
+            <button type="button" className="det-linkbtn" onClick={() => setAsTable((v) => !v)}>{asTable ? t('show_chart') : t('show_table')}</button>
+          </div>
+        </section>
       </div>
-      <form className="filters" onSubmit={(e) => e.preventDefault()}>
+      <form className="toolbar det-toolbar" onSubmit={(e) => e.preventDefault()}>
         <Field label={t('filter_period')} id="cf-period">
           <input id="cf-period" dir="ltr" placeholder="2026-Q3" value={filters.period} onChange={(e) => setFilters({ ...filters, period: e.target.value })} />
         </Field>
@@ -136,16 +152,18 @@ export default function ComplianceTab() {
             ))}
           </select>
         </Field>
-        <Button type="button" variant="secondary" onClick={() => setFilters({ period: '', tax_type: '', approver_role: '' })}>{t('clear_filters')}</Button>
+        <div className="toolbar-end"><Button type="button" variant="secondary" onClick={() => setFilters({ period: '', tax_type: '', approver_role: '' })}>{t('clear_filters')}</Button></div>
       </form>
-      <Panel title={t('exceptions_title')} id="exceptions">
+      <div className="det-two">
+      <Panel title={t('exceptions_title')} id="exceptions" className={data.exceptions.length ? 'det-panel-flush' : undefined}>
         {data.exceptions.length === 0 ? (
-          <p>{t('no_exceptions')}</p>
+          <p className="det-note"><Icon name="check" size={16} />{t('no_exceptions')}</p>
         ) : (
+          <div className="table-compact det-table">
           <Table headers={[t('col_ref'), t('col_reason'), t('col_severity'), t('col_owner'), t('col_status')]}>
             {data.exceptions.map((x) => (
               <tr key={x.exception_id}>
-                <td><bdi dir="ltr">{x.submission_ref}</bdi></td>
+                <td className="nowrap"><bdi dir="ltr">{x.submission_ref}</bdi></td>
                 <td>{x.reason_label[lang]}</td>
                 <td>{x.severity === 1 ? <Chip tone="critical">1</Chip> : <Chip tone="attention">2</Chip>}</td>
                 <td>{t(`translation:roles.${x.case_owner_role}`)}</td>
@@ -153,27 +171,30 @@ export default function ComplianceTab() {
               </tr>
             ))}
           </Table>
+          </div>
         )}
       </Panel>
-      <Panel title={t('submissions_title')} id="submissions">
-        <Message kind="info"><strong>{t('readback_title')}</strong> {t('readback_na')}</Message>
+      <Panel title={t('submissions_title')} id="submissions" actions={<span className="hint">{t('blocked_attempts', { n: data.blocked_attempts.length })}</span>}>
+        <p className="det-note"><Icon name="info" size={16} /><span><strong>{t('readback_title')}</strong> {t('readback_na')}</span></p>
         {data.submissions.length === 0 ? (
           <Empty title={t('comp_empty')} body={t('comp_empty2')} action={<Button variant="secondary" onClick={() => setFilters({ period: '', tax_type: '', approver_role: '' })}>{t('clear_filters')}</Button>} />
         ) : (
+          <div className="table-compact det-table">
           <Table headers={[t('col_ref'), t('col_tax'), t('col_time'), t('col_match'), t('col_readback')]}>
             {data.submissions.map((s) => (
               <tr key={s.submission_ref}>
-                <td><bdi dir="ltr">{s.submission_ref}</bdi>{s.self_reported && <div className="hint">{t('self_reported_tag')}</div>}</td>
-                <td>{s.tax_type ? t(s.tax_type) : '—'}</td>
-                <td>{formatDateTime(s.at, lang)}</td>
+                <td className="nowrap"><bdi dir="ltr">{s.submission_ref}</bdi>{s.self_reported && <span className="det-cell-sub">{t('self_reported_tag')}</span>}</td>
+                <td className="nowrap">{s.tax_type ? t(s.tax_type) : '—'}</td>
+                <td className="date-cell" title={formatDateTime(s.at, lang)}>{formatDubaiDate(s.at, lang)}</td>
                 <td>{s.match_status === 'valid' ? <Chip tone="ok">{t('match_valid')}</Chip> : <Chip tone="urgent">{t('match_exception')}</Chip>}</td>
-                <td>{t('not_available')}</td>
+                <td className="nowrap">{t('not_available')}</td>
               </tr>
             ))}
           </Table>
+          </div>
         )}
-        <p className="hint">{t('blocked_attempts', { n: data.blocked_attempts.length })}</p>
       </Panel>
+      </div>
     </div>
   )
 }

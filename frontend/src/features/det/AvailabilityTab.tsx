@@ -1,5 +1,6 @@
 import { useState } from 'react'
 import { useTranslation } from 'react-i18next'
+import { Icon } from '../../components/Icon'
 import { Button, Chip, Message, Panel, Skeleton, Table } from '../../components/ui'
 import { formatDateTime, formatPercent } from '../../lib/format'
 import { useFetch } from './lib'
@@ -28,10 +29,12 @@ export default function AvailabilityTab() {
   const name = (w: { name_en: string; name_ar: string }) => (ar ? w.name_ar : w.name_en)
   return (
     <div>
-      <div className="actions" role="group" aria-label={t('period')}>
+      <div className="toolbar det-toolbar" role="group" aria-label={t('period')}>
+        <div className="det-seg">
         {(['day', 'week', 'month', 'window'] as const).map((p) => (
-          <Button key={p} variant={period === p ? 'primary' : 'secondary'} aria-pressed={period === p} onClick={() => setPeriod(p)}>{t(`period_${p}`)}</Button>
+          <button type="button" key={p} aria-pressed={period === p} onClick={() => setPeriod(p)}>{t(`period_${p}`)}</button>
         ))}
+        </div>
         {period === 'window' && (
           <select aria-label={t('period_window')} value={windowId} onChange={(e) => setWindowId(e.target.value)}>
             <option value="">—</option>
@@ -39,9 +42,9 @@ export default function AvailabilityTab() {
           </select>
         )}
       </div>
-      <div className="grid">
-        <div className="card">
-          <h3>{t('k26_title')}</h3>
+      <div className="det-card-grid det-card-grid-3" style={{ gridTemplateColumns: 'repeat(auto-fit, minmax(min(100%, 320px), 1fr))' }}>
+        <div className="card det-status-card">
+          <h3><Icon name="activity" size={18} />{t('k26_title')}</h3>
           {data.tile.state === 'no_probes_yet' ? (
             <p>{t('no_probes')}</p>
           ) : k.state === 'no_window' ? (
@@ -51,27 +54,30 @@ export default function AvailabilityTab() {
             </>
           ) : (
             <>
-              <p style={{ fontSize: '2rem', margin: 0 }}><bdi dir="ltr">{k.value === null ? '—' : formatPercent(k.value, i18n.language, 2)}</bdi></p>
-              {k.state === 'incomplete' && <Chip tone="attention" icon="◔">{t('incomplete')}</Chip>}
-              <p className="hint">{t('target', { pct: k.target_pct })} · {t('versions_note')} · <bdi dir="ltr">{k.config_version}</bdi></p>
+              <p className="det-kpi-value"><bdi dir="ltr">{k.value === null ? '—' : formatPercent(k.value, i18n.language, 2)}</bdi></p>
+              {k.state === 'incomplete' && <p><Chip tone="attention" icon="◔">{t('incomplete')}</Chip></p>}
+              <p className="det-kpi-target">{t('target', { pct: k.target_pct })} · {t('versions_note')} · <bdi dir="ltr">{k.config_version}</bdi></p>
             </>
           )}
         </div>
-        <div className="card">
-          <h3>{t('probe_status')}</h3>
+        <div className="card det-status-card">
+          <h3><Icon name="check" size={18} />{t('probe_status')}</h3>
           {data.tile.state === 'no_probes_yet' ? <p>{t('no_probes')}</p> : (
             <>
+              <div className="det-switches">
               {Object.entries(data.tile.checks).map(([key, c]) => (
-                <div key={key}><Chip tone={c.result === 'up' ? 'ok' : c.result === 'down' ? 'critical' : 'neutral'} icon={c.result === 'up' ? '✓' : c.result === 'down' ? '✕' : '?'}>{key.replace('_', '-')}: {t(c.result as 'up' | 'down' | 'no_data')}</Chip></div>
+                <Chip key={key} tone={c.result === 'up' ? 'ok' : c.result === 'down' ? 'critical' : 'neutral'} icon={c.result === 'up' ? '✓' : c.result === 'down' ? '✕' : '?'}>{key.replace('_', '-')}: {t(c.result as 'up' | 'down' | 'no_data')}</Chip>
               ))}
+              </div>
               {data.tile.last_checked && <p className="hint">{t('last_checked', { time: formatDateTime(data.tile.last_checked, i18n.language) })}</p>}
             </>
           )}
-          <p className="hint">{t('identity_note')}</p>
+          <p className="det-kpi-target">{t('identity_note')}</p>
         </div>
       </div>
       {k.windows.length > 0 && (
-        <Panel title={t('period_window')}>
+        <Panel title={t('period_window')} className="det-panel-flush">
+          <div className="table-compact det-table">
           <Table headers={[t('col_window'), t('col_minutes'), 'AR ' + t('col_availability'), 'EN ' + t('col_availability'), t('col_down'), t('col_no_data'), t('col_unmeasured'), t('col_version_short')]}>
             {k.windows.map((w) => (
               <tr key={w.window_id}>
@@ -86,15 +92,16 @@ export default function AvailabilityTab() {
               </tr>
             ))}
           </Table>
+          </div>
         </Panel>
       )}
-      <Panel title={t('timeline')} actions={<Button variant="secondary" onClick={() => setView(view === 'timeline' ? 'table' : 'timeline')}>{view === 'timeline' ? t('table_view') : t('timeline_view')}</Button>}>
-        <p className="hint">{t('down_legend')} · {t('no_data_legend')}</p>
-        <div className="actions" aria-hidden="true">
-          {(['up', 'down', 'no_data', 'unmeasured'] as const).map((s) => <span key={s}><span style={{ display: 'inline-block', width: 14, height: 14, background: PATTERN[s], verticalAlign: 'middle' }} /> {t(s)}</span>)}
+      <Panel title={t('timeline')} actions={<Button variant="secondary" className="det-rowbtn" onClick={() => setView(view === 'timeline' ? 'table' : 'timeline')}>{view === 'timeline' ? t('table_view') : t('timeline_view')}</Button>}>
+        <p className="det-note">{t('down_legend')} · {t('no_data_legend')}</p>
+        <div className="det-legend" aria-hidden="true">
+          {(['up', 'down', 'no_data', 'unmeasured'] as const).map((s) => <span key={s}><span className="det-swatch" style={{ background: PATTERN[s] }} />{t(s)}</span>)}
         </div>
         {view === 'timeline' ? (
-          <div style={{ display: 'flex', flexWrap: 'wrap', gap: 1 }} role="img" aria-label={t('timeline')}>
+          <div className="det-timeline" role="img" aria-label={t('timeline')}>
             {data.timeline.slice(-720).map((m) => (
               <span key={m.minute_ts} title={`${m.minute_local} · AR ${t(m.ar.status as 'up')}${m.ar.failed.length ? ` (${m.ar.failed.join(', ')})` : ''} · EN ${t(m.en.status as 'up')}${m.en.failed.length ? ` (${m.en.failed.join(', ')})` : ''}${m.peak_windows.length ? ` · ${m.peak_windows.join(', ')}` : ''}`} style={{ width: 4, height: 18, background: PATTERN[m.ar.status === 'down' || m.en.status === 'down' ? 'down' : m.ar.status === 'up' && m.en.status === 'up' ? 'up' : m.ar.status === 'no_data' || m.en.status === 'no_data' ? 'no_data' : 'unmeasured'], outline: m.peak_windows.length ? '1px solid var(--accent)' : undefined }} />
             ))}

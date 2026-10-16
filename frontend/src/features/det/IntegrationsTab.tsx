@@ -1,9 +1,11 @@
 import { useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import { useAuth } from '../../app/auth'
+import { Icon } from '../../components/Icon'
 import { Button, Chip, Dialog, Field, Message, Panel, Skeleton, Table } from '../../components/ui'
 import { ApiError, post } from '../../lib/api'
 import { formatDateTime } from '../../lib/format'
+import { formatDubaiDate } from './headerMeta'
 import { srOnly, useBi, useFetch, type Bi } from './lib'
 
 interface Item { item_id: string; text_en?: string; text_ar?: string; item_type: string; tag?: string | null; owner_name?: string | null; evidence_reference?: string | null; evidence_date?: string | null; approver_identity?: string | null; complete: boolean; missing?: string[] }
@@ -40,33 +42,35 @@ export default function IntegrationsTab() {
   return (
     <div>
       <div aria-live="polite" style={srOnly}>{live}</div>
-      <p>{t('integrations_intro')}</p>
+      <p className="det-note"><Icon name="info" size={16} />{t('integrations_intro')}</p>
       {error && loadedAt && <Message kind="warning">{t('register_error', { when: formatDateTime(loadedAt, i18n.language) })} <Button variant="link" onClick={reload}>{t('try_again')}</Button></Message>}
       {msg && <Message kind="error">{msg}</Message>}
       {!data.evidence_detail && <Message kind="info">{t('no_evidence_detail')}</Message>}
       {data.rows.length === 0 ? (
         <Message kind="info">{t('register_empty')} {t('register_empty_owners')}</Message>
       ) : (
-        <Panel title={t('integrations_title')} actions={canManage ? <Button variant="secondary" onClick={async () => { await post('/api/admin/integrations/daily-check'); reload() }}>{t('daily_check')}</Button> : undefined}>
+        <Panel title={t('integrations_title')} className="det-panel-flush" actions={<><span className="hint">{t('int_live_n', { n: data.rows.filter((r) => r.switch_state === 'ON').length, m: data.rows.length })}</span>{canManage && <Button variant="secondary" className="det-rowbtn" onClick={async () => { await post('/api/admin/integrations/daily-check'); reload() }}>{t('daily_check')}</Button>}</>}>
+          <div className="table-compact det-table">
           <Table headers={[t('col_integration'), t('col_phase'), t('col_switch'), t('col_status'), t('col_progress'), t('col_last_change')]}>
             {data.rows.map((r) => (
               <tr key={r.row_id}>
-                <td>
-                  <Button variant="link" onClick={() => setOpen(r)}>{tx(r.name)}</Button> {r.mock && <Chip tone="draft">{t('mock')}</Chip>}
+                <td className="det-wrap">
+                  <Button variant="link" className="det-ref-btn" onClick={() => setOpen(r)}>{tx(r.name)}</Button> {r.mock && <Chip tone="draft">{t('mock')}</Chip>}
                 </td>
-                <td>{r.phase}</td>
+                <td className="nowrap"><bdi dir="ltr">{r.phase}</bdi></td>
                 <td><Chip tone={r.switch_state === 'ON' ? 'ok' : 'neutral'} icon={r.switch_state === 'ON' ? '●' : '○'}>{r.switch_state}</Chip></td>
                 <td><Chip tone={statusTone(r.status)}>{t(`row_status.${r.status}`, { defaultValue: r.status })}</Chip></td>
-                <td>
-                  {tx(r.progress.label)} <Chip tone={r.progress.word === 'Complete' ? 'ok' : r.progress.word === 'Incomplete' ? 'attention' : 'neutral'}>{t(`progress_word.${r.progress.word}`)}</Chip>
-                  <div aria-hidden="true" style={{ display: 'flex', gap: 2, marginTop: 4 }}>
-                    {Array.from({ length: r.progress.m }).map((_, i) => <span key={i} style={{ width: 14, height: 6, borderRadius: 3, background: i < r.progress.n ? 'var(--ok)' : 'var(--border)' }} />)}
+                <td style={{ minWidth: 190 }}>
+                  <span className="det-cell-sub" style={{ color: 'var(--text-2)', fontSize: 'var(--fs-sm)' }}>{tx(r.progress.label)}</span> <Chip tone={r.progress.word === 'Complete' ? 'ok' : r.progress.word === 'Incomplete' ? 'attention' : 'neutral'}>{t(`progress_word.${r.progress.word}`)}</Chip>
+                  <div aria-hidden="true" className="det-progress">
+                    {Array.from({ length: r.progress.m }).map((_, i) => <span key={i} className={i < r.progress.n ? 'is-done' : undefined} />)}
                   </div>
                 </td>
-                <td>{formatDateTime(r.updated_at, i18n.language)} <span className="hint">v{r.version}</span></td>
+                <td className="date-cell" title={formatDateTime(r.updated_at, i18n.language)}>{formatDubaiDate(r.updated_at, i18n.language)} <span className="hint"><bdi dir="ltr">v{r.version}</bdi></span></td>
               </tr>
             ))}
           </Table>
+          </div>
         </Panel>
       )}
       <Panel title={t('k11_title')}>
@@ -79,9 +83,9 @@ export default function IntegrationsTab() {
           {open.items.length === 0 ? (
             <p>{t('row_detail_empty')}</p>
           ) : (
-            <ul>
+            <ul className="det-scope-items">
               {open.items.map((it) => (
-                <li key={it.item_id} style={{ marginBottom: 8 }}>
+                <li key={it.item_id} style={{ display: 'block', padding: '8px 0', borderBottom: '1px solid var(--border)' }}>
                   <Chip tone={it.complete ? 'ok' : 'neutral'}>{it.complete ? t('progress_word.Complete') : t('progress_word.Incomplete')}</Chip>{' '}
                   {data.evidence_detail ? (i18n.language.startsWith('ar') ? it.text_ar : it.text_en) : <bdi dir="ltr">{it.item_id}</bdi>} {it.tag && <Chip tone="attention">{it.tag}</Chip>}
                   {data.evidence_detail && !it.complete && it.missing && it.missing.length > 0 && <div className="notice-tbc">{t('missing', { field: it.missing[0] })}</div>}

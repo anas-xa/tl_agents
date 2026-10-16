@@ -1,6 +1,8 @@
 import { useState } from 'react'
 import { useTranslation } from 'react-i18next'
+import { Icon } from '../../components/Icon'
 import { Button, Chip, Field, Ident, Message, Panel } from '../../components/ui'
+import '../det/det.css'
 import { ApiError, get } from '../../lib/api'
 import { formatDate } from '../../lib/format'
 import { useLang } from './parts'
@@ -47,25 +49,25 @@ export default function LicenceLookup() {
   }
   return (
     <Panel title={t('lookup_title')} id="det-licence-lookup">
-      <p className="hint">{t('lookup_intro')}</p>
-      <form className="actions" onSubmit={lookup} style={{ alignItems: 'flex-end', gap: 12, flexWrap: 'wrap' }}>
+      <p className="det-note"><Icon name="lock" size={16} />{t('lookup_intro')}</p>
+      <form className="det-form-row" role="search" onSubmit={lookup}>
         <Field label={t('lookup_label')} id="lookup-number">
           <input id="lookup-number" dir="ltr" value={number} maxLength={40} onChange={(e) => setNumber(e.target.value)} autoComplete="off" />
         </Field>
-        <Button type="submit" disabled={busy || !number.trim()}>{t('lookup_search')}</Button>
+        <Button type="submit" disabled={busy || !number.trim()}><Icon name="search" size={18} />{t('lookup_search')}</Button>
       </form>
       {err && <Message kind="warning">{err}</Message>}
       {view && (
-        <div className="card" style={{ marginTop: 12 }}>
-          <dl className="kv">
+        <div style={{ marginTop: 16 }}>
+          <dl className="det-facts det-lookup-facts">
             {FIELDS.map((k) => (
-              <div key={k} style={{ display: 'contents' }}>
+              <div key={k}>
                 <dt>{t(`f.${k}`)}</dt>
                 <dd>{val(k)}</dd>
               </div>
             ))}
           </dl>
-          <p className="hint" role="status"><Chip tone="info" icon="👁">{t('lookup_logged')}</Chip></p>
+          <p role="status"><Chip tone="info" icon="👁">{t('lookup_logged')}</Chip></p>
         </div>
       )}
     </Panel>

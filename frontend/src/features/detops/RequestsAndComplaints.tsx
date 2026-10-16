@@ -2,15 +2,18 @@ import { useCallback, useEffect, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import { useAuth } from '../../app/auth'
 import { Placeholder } from '../../components/Placeholder'
-import { Button, Chip, Dialog, Empty, Field, Ident, Message, Panel, Skeleton, Table } from '../../components/ui'
+import { Button, Chip, Dialog, Empty, Field, Ident, Message, PageHeader, Panel, Skeleton, StatCard, Table, Tabs } from '../../components/ui'
 import { ApiError, get, post } from '../../lib/api'
-import { formatDate, formatDateTime } from '../../lib/format'
+import { formatDate, formatDateTime, iso } from '../../lib/format'
+import { daysUntil, dubaiToday, formatDubaiDate } from '../det/headerMeta'
+import { DueChip, NextStep } from '../det/ui'
 
 interface CaseRow { id: string; action: string; state: string; chip: string; reason_code: string | null; reference_code: string; received_at: string; effective_at: string | null; subscription_id: string; can_cancel: boolean }
 interface ComplaintRow { id: string; reference: string; licence_number: string; category: string; received_at: string; reply_by: string; interim_due_date: string | null; status: string; status_reason_code: string | null; filed_for_owner: boolean; description: string; escalation_flag?: boolean }
 
 const OPEN = new Set(['requested', 'pending_DET', 'needs_DET_action'])
 const COMPLAINT_STATUSES = ['received', 'in_review', 'replied', 'resolved', 'refunded', 'rejected']
+const DONE = new Set(['replied', 'resolved', 'refunded', 'rejected'])
 
 /** DET staff queues: subscription opt-out/refund requests (det.cases.decide) and the complaint log (complaints.handle). */
 export default function RequestsAndComplaints() {
@@ -22,16 +25,28 @@ export default function RequestsAndComplaints() {
   const [tab, setTab] = useState<'requests' | 'complaints'>(canCases ? 'requests' : 'complaints')
   if (!me) return null
   if (!canCases && !canComplaints) return <Placeholder variant="C" />
-  return (
-    <div>
-      <h1>{t('title')}</h1>
-      <p className="muted">{t('intro')}</p>
-      <div className="tabs" role="tablist">
-        {canCases && <button role="tab" aria-selected={tab === 'requests'} onClick={() => setTab('requests')}>{t('tab_requests')}</button>}
-        {canComplaints && <button role="tab" aria-selected={tab === 'complaints'} onClick={() => setTab('complaints')}>{t('tab_complaints')}</button>}
-      </div>
+  const both = canCases && canComplaints
+  const body = (
+    <>
       {tab === 'requests' && canCases && <Requests lang={lang} />}
       {tab === 'complaints' && canComplaints && <Complaints lang={lang} />}
+    </>
+  )
+  return (
+    <div className="page det-ws">
+      <PageHeader eyebrow={t('eyebrow')} title={t('title')} subtitle={t('intro')} />
+      {both ? (
+        <>
+          <Tabs
+            label={t('title')}
+            idPrefix="detops"
+            value={tab}
+            onChange={setTab}
+            tabs={[{ id: 'requests' as const, label: t('tab_requests') }, { id: 'complaints' as const, label: t('tab_complaints') }]}
+          />
+          <div role="tabpanel" id={`detops-${tab}-panel`} aria-labelledby={`detops-${tab}`}>{body}</div>
+        </>
+      ) : body}
     </div>
   )
 }
@@ -62,23 +77,44 @@ function Requests({ lang }: { lang: string }) {
   }
   if (err) return <Message kind="error">{err}</Message>
   if (!rows) return <Skeleton rows={4} />
+  const waiting = rows.filter((c) => OPEN.has(c.state)).sort((x, y) => x.received_at.localeCompare(y.received_at))
+  const applied = rows.filter((c) => c.chip === 'applied').length
+  const refused = rows.filter((c) => c.chip === 'refused').length
+  const first = waiting[0]
+  const openDecide = (c: CaseRow) => { setOpen(c); setDecision('confirm') }
   return (
-    <Panel title={t('tab_requests')}>
+    <>
+      <div className="stat-grid">
+        <StatCard icon="inbox" tone={waiting.length ? 'attention' : 'ok'} label={t('stat_waiting')} value={<bdi dir="ltr">{waiting.length}</bdi>} hint={t('stat_waiting_hint')} />
+        <StatCard icon="check" tone="ok" label={t('stat_applied')} value={<bdi dir="ltr">{applied}</bdi>} />
+        <StatCard icon="close" label={t('stat_refused')} value={<bdi dir="ltr">{refused}</bdi>} />
+      </div>
+      {first ? (
+        <NextStep action={<Button variant="secondary" className="det-rowbtn" onClick={() => openDecide(first)}>{t('decide')}</Button>}>
+          {t('next_request', { ref: iso(first.reference_code), action: t(`action_${first.action}`, { defaultValue: first.action }), date: formatDateTime(first.received_at, lang) })}
+        </NextStep>
+      ) : (
+        <NextStep tone="calm" icon="check">{t('next_request_none')}</NextStep>
+      )}
       {msg && <Message kind="success">{msg}</Message>}
-      {rows.length === 0 ? <Empty title={t('empty_requests')} /> : (
-        <Table headers={[t('reference'), t('action'), t('received'), t('state'), t('effective'), '']}>
+      <Panel title={t('tab_requests')} className="det-panel-flush" actions={<span className="hint">{t('count_n', { n: rows.length })}</span>}>
+      {rows.length === 0 ? <Empty icon="inbox" title={t('empty_requests')} body={t('empty_requests_next')} /> : (
+        <div className="table-compact det-table">
+        <Table headers={[t('reference'), t('action'), t('received'), t('state'), t('effective'), <span className="visually-hidden" key="a">{t('col_action')}</span>]}>
           {rows.map((c) => (
             <tr key={c.id}>
-              <td><Ident>{c.reference_code}</Ident></td>
-              <td>{t(`action_${c.action}`, { defaultValue: c.action })}</td>
-              <td>{formatDateTime(c.received_at, lang)}</td>
+              <td className="nowrap"><Ident>{c.reference_code}</Ident></td>
+              <td className="nowrap">{t(`action_${c.action}`, { defaultValue: c.action })}</td>
+              <td className="date-cell">{formatDateTime(c.received_at, lang)}</td>
               <td><Chip tone={c.chip === 'applied' ? 'ok' : c.chip === 'refused' ? 'critical' : c.chip === 'with_det' ? 'urgent' : 'info'}>{t(`case_chip.${c.chip}`)}</Chip></td>
-              <td>{c.effective_at ? formatDate(c.effective_at, lang) : <span className="notice-tbc">{t('effective_tbc')}</span>}</td>
-              <td>{OPEN.has(c.state) && <Button variant="secondary" onClick={() => { setOpen(c); setDecision('confirm') }}>{t('decide')}</Button>}</td>
+              <td className="date-cell">{c.effective_at ? formatDubaiDate(c.effective_at, lang) : <span className="notice-tbc">{t('effective_tbc')}</span>}</td>
+              <td className="nowrap">{OPEN.has(c.state) && <Button variant="secondary" className="det-rowbtn" onClick={() => openDecide(c)}>{t('decide')}</Button>}</td>
             </tr>
           ))}
         </Table>
+        </div>
       )}
+      </Panel>
       <Dialog open={!!open} title={t('decide')} onClose={() => setOpen(null)} labelledBy="decide-title">
         <fieldset style={{ border: 0, padding: 0 }}>
           <label style={{ display: 'block', minHeight: 44 }}><input type="radio" name="d" checked={decision === 'confirm'} onChange={() => setDecision('confirm')} /> {t('confirm')}</label>
@@ -92,7 +128,7 @@ function Requests({ lang }: { lang: string }) {
           <Button variant="secondary" onClick={() => setOpen(null)}>{t('common.cancel', { ns: 'translation' })}</Button>
         </div>
       </Dialog>
-    </Panel>
+    </>
   )
 }
 
@@ -121,30 +157,52 @@ function Complaints({ lang }: { lang: string }) {
   }
   if (err) return <Message kind="error">{err}</Message>
   if (!rows) return <Skeleton rows={4} />
-  const today = new Date().toISOString().slice(0, 10)
+  const today = dubaiToday()
+  const isDone = (c: ComplaintRow) => DONE.has(c.status)
+  const openRows = rows.filter((c) => !isDone(c)).sort((x, y) => x.reply_by.localeCompare(y.reply_by))
+  const overdue = openRows.filter((c) => c.reply_by < today)
+  const dueSoon = openRows.filter((c) => { const d = daysUntil(c.reply_by); return d !== null && d >= 0 && d <= 2 })
+  const first = openRows[0]
+  const openUpdate = (c: ComplaintRow) => { setOpen(c); setForm({ status: c.status === 'received' ? 'in_review' : c.status, reason_code: '', interim_due_date: '' }) }
   return (
-    <Panel title={t('tab_complaints')}>
-      <p className="muted">{t('reply_target', { n: sla })}</p>
-      {msg && <Message kind="success">{msg}</Message>}
-      {rows.length === 0 ? <Empty title={t('empty_complaints')} /> : (
-        <Table headers={[t('reference'), t('licence'), t('category'), t('received'), t('reply_by'), t('state'), t('description'), '']}>
-          {rows.map((c) => {
-            const overdue = !['replied', 'resolved', 'refunded', 'rejected'].includes(c.status) && c.reply_by < today
-            return (
-              <tr key={c.id}>
-                <td><Ident>{c.reference}</Ident></td>
-                <td><Ident>{c.licence_number}</Ident></td>
-                <td>{c.category}</td>
-                <td>{formatDateTime(c.received_at, lang)}</td>
-                <td>{formatDate(c.reply_by, lang)} {overdue && <Chip tone="critical">{t('overdue')}</Chip>}</td>
-                <td><Chip tone={c.status === 'resolved' || c.status === 'replied' ? 'ok' : c.status === 'rejected' ? 'critical' : 'info'}>{t(`status.${c.status}`)}</Chip>{c.filed_for_owner && <div className="muted">{t('filed_for_owner')}</div>}</td>
-                <td style={{ maxWidth: 280 }}>{c.description}</td>
-                <td><Button variant="secondary" onClick={() => { setOpen(c); setForm({ status: c.status === 'received' ? 'in_review' : c.status, reason_code: '', interim_due_date: '' }) }}>{t('set_status')}</Button></td>
-              </tr>
-            )
-          })}
-        </Table>
+    <>
+      <div className="stat-grid">
+        <StatCard icon="inbox" tone={openRows.length ? 'info' : 'ok'} label={t('stat_open')} value={<bdi dir="ltr">{openRows.length}</bdi>} hint={t('stat_open_hint', { n: rows.length })} />
+        <StatCard icon="clock" tone={dueSoon.length ? 'urgent' : undefined} label={t('stat_due_soon')} value={<bdi dir="ltr">{dueSoon.length}</bdi>} hint={t('stat_due_soon_hint')} />
+        <StatCard icon="alert" tone={overdue.length ? 'critical' : undefined} label={t('overdue')} value={<bdi dir="ltr">{overdue.length}</bdi>} />
+        <StatCard icon="calendar" label={t('stat_target')} value={t('stat_target_value', { n: sla })} hint={t('stat_target_hint')} />
+      </div>
+      {first ? (
+        <NextStep action={<Button variant="secondary" className="det-rowbtn" onClick={() => openUpdate(first)}>{t('set_status')}</Button>}>
+          {first.reply_by < today ? t('next_complaint_overdue', { ref: iso(first.reference), date: formatDate(first.reply_by, lang) }) : t('next_complaint', { ref: iso(first.reference), date: formatDate(first.reply_by, lang) })}
+        </NextStep>
+      ) : (
+        <NextStep tone="calm" icon="check">{t('next_complaint_none')}</NextStep>
       )}
+      {msg && <Message kind="success">{msg}</Message>}
+      <Panel title={t('tab_complaints')} className="det-panel-flush" actions={<span className="hint">{t('count_n', { n: rows.length })}</span>}>
+      {rows.length === 0 ? <Empty icon="inbox" title={t('empty_complaints')} body={t('empty_complaints_next')} /> : (
+        <div className="table-compact det-table">
+        <Table headers={[t('reference'), t('licence'), t('category'), t('received'), t('reply_by'), t('state'), t('description'), <span className="visually-hidden" key="a">{t('col_action')}</span>]}>
+          {rows.map((c) => (
+            <tr key={c.id}>
+              <td className="nowrap"><Ident>{c.reference}</Ident>{c.filed_for_owner && <span className="det-cell-sub">{t('filed_for_owner')}</span>}</td>
+              <td className="nowrap"><Ident>{c.licence_number}</Ident></td>
+              <td className="nowrap">{t(`category_${c.category}`, { defaultValue: c.category.replace(/_/g, ' ') })}</td>
+              <td className="date-cell" title={formatDateTime(c.received_at, lang)}>{formatDubaiDate(c.received_at, lang)}</td>
+              <td className="date-cell">
+                {formatDate(c.reply_by, lang)}
+                {!isDone(c) && <span className="det-cell-sub">{c.reply_by < today ? <Chip tone="critical" icon="!">{t('overdue')}</Chip> : <DueChip date={c.reply_by} />}</span>}
+              </td>
+              <td><Chip tone={c.status === 'resolved' || c.status === 'replied' || c.status === 'refunded' ? 'ok' : c.status === 'rejected' ? 'critical' : 'info'}>{t(`status.${c.status}`)}</Chip></td>
+              <td className="det-wrap">{c.description}</td>
+              <td className="nowrap"><Button variant="secondary" className="det-rowbtn" onClick={() => openUpdate(c)}>{t('set_status')}</Button></td>
+            </tr>
+          ))}
+        </Table>
+        </div>
+      )}
+      </Panel>
       <Dialog open={!!open} title={t('set_status')} onClose={() => setOpen(null)} labelledBy="complaint-title">
         <Field label={t('state')} id="c-status"><select id="c-status" value={form.status} onChange={(e) => setForm({ ...form, status: e.target.value })}>{COMPLAINT_STATUSES.map((s) => <option key={s} value={s}>{t(`status.${s}`)}</option>)}</select></Field>
         <Field label={t('status_reason_code')} id="c-reason" required><input id="c-reason" value={form.reason_code} onChange={(e) => setForm({ ...form, reason_code: e.target.value })} /></Field>
@@ -154,6 +212,6 @@ function Complaints({ lang }: { lang: string }) {
           <Button variant="secondary" onClick={() => setOpen(null)}>{t('common.cancel', { ns: 'translation' })}</Button>
         </div>
       </Dialog>
-    </Panel>
+    </>
   )
 }

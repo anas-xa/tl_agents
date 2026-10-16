@@ -1,6 +1,8 @@
 import { useEffect, useState } from 'react'
 import { useTranslation } from 'react-i18next'
-import { Message, Panel, Skeleton } from '../../components/ui'
+import { Icon } from '../../components/Icon'
+import { Message, Skeleton, StatCard } from '../../components/ui'
+import { MetaLine, SectionHead } from '../det/ui'
 import { get } from '../../lib/api'
 import { formatNumber, formatPercent } from '../../lib/format'
 
@@ -10,20 +12,14 @@ interface Overview { as_of: string; period_days: number; period_level: 'month' |
 function CellView({ cell, label }: { cell: Cell; label: string }) {
   const { t, i18n } = useTranslation('settings')
   const lang = i18n.language
+  if (cell.not_enabled) return <StatCard className="det-stat-dashed" label={label} value={<span className="det-kpi-value-sm">{t('det_not_enabled')}</span>} />
+  if (cell.suppressed) return <StatCard label={label} value={<span className="det-kpi-value-sm" title={t('suppressed')}><span aria-hidden="true">🔒 </span>{cell.display}<span className="visually-hidden"> {t('suppressed')}</span></span>} />
   return (
-    <div className="card">
-      <div className="stat-label">{label}</div>
-      {cell.not_enabled ? (
-        <div className="stat">{t('det_not_enabled')}</div>
-      ) : cell.suppressed ? (
-        <div>
-          <div className="stat"><span aria-hidden="true">🔒</span> {cell.display}</div>
-          <div className="helper">{t('suppressed')}</div>
-        </div>
-      ) : (
-        <div className="stat">{formatNumber(cell.value, lang)}{cell.percent !== undefined && <span className="muted"> ({formatPercent(cell.percent, lang)})</span>}</div>
-      )}
-    </div>
+    <StatCard
+      label={label}
+      value={<bdi dir="ltr">{formatNumber(cell.value, lang)}</bdi>}
+      hint={cell.percent !== undefined ? <bdi dir="ltr">{formatPercent(cell.percent, lang)}</bdi> : undefined}
+    />
   )
 }
 
@@ -38,24 +34,25 @@ export default function DetDelegationOverview() {
   if (err) return <Message kind="error">{err}</Message>
   if (!data) return <Skeleton rows={3} />
   return (
-    <Panel title={t('det_title')} id="delegation-overview">
-      <p className="muted">{t('det_as_of', { when: data.as_of })} · {t('det_level')}: {data.period_level === 'quarter' ? t('det_quarter') : t('det_month')}</p>
-      <p className="helper">{t('det_stub')}</p>
-      <div className="grid">
+    <section id="delegation-overview" aria-labelledby="delegation-overview-title">
+      <SectionHead id="delegation-overview-title" first title={t('det_title')} hint={<MetaLine items={[t('det_as_of', { when: data.as_of }), `${t('det_level')}: ${data.period_level === 'quarter' ? t('det_quarter') : t('det_month')}`]} />} />
+      <p className="det-note"><Icon name="info" size={16} />{t('det_stub')}</p>
+      <p className="det-note"><Icon name="lock" size={16} />{t('suppressed')}</p>
+      <div className="stat-grid det-deleg-grid">
         <CellView cell={data.companies_with_active_delegate} label={t('det_c1')} />
         <CellView cell={data.pending_invitations} label={t('det_c2')} />
         <CellView cell={data.expired_invitations} label={t('det_c3')} />
         <CellView cell={data.quarantine_events} label={t('det_c5')} />
         <CellView cell={data.no_owner_companies} label={t('det_c6')} />
       </div>
-      <h3>{t('det_c4')}</h3>
-      <div className="grid">
+      <SectionHead level={3} title={t('det_c4')} />
+      <div className="stat-grid det-deleg-grid">
         {Object.entries(data.removals_by_reason).map(([k, c]) => <CellView key={k} cell={c} label={t(`det_${k}`)} />)}
       </div>
-      <h3>{t('det_c7')}</h3>
-      <div className="grid">
+      <SectionHead level={3} title={t('det_c7')} />
+      <div className="stat-grid det-deleg-grid">
         {Object.entries(data.delegated_rights).map(([k, c]) => <CellView key={k} cell={c} label={t(`fn_${k}`)} />)}
       </div>
-    </Panel>
+    </section>
   )
 }

@@ -1,8 +1,11 @@
 import { useEffect, useMemo, useState } from 'react'
 import { useTranslation } from 'react-i18next'
-import { Button, Chip, Field, Message, Panel, Skeleton } from '../../components/ui'
+import { Icon } from '../../components/Icon'
+import { Button, Chip, Disclosure, Field, Message, Panel, Skeleton } from '../../components/ui'
 import { ApiError, get, put } from '../../lib/api'
 import { formatDate, formatDateTime } from '../../lib/format'
+import { useDetHeaderMeta } from '../det/headerMeta'
+import { MetaLine, SectionHead } from '../det/ui'
 import { type Dashboard, type KpiRecord, type SupTable, SupTableView, srOnly, useFetch, useLang } from './parts'
 import Tile from './Tile'
 
@@ -13,8 +16,7 @@ import Tile from './Tile'
  */
 export default function KpisTab() {
   const { t } = useTranslation('kpis')
-  const { lang, tx } = useLang()
-  const [filters, setFilters] = useState<{ period: string; cohort: string; payment_status: string }>({ period: '', cohort: '', payment_status: '' })
+  const [filters, setFilters] = useState<Filters>({ period: '', cohort: '', payment_status: '' })
   const qs = new URLSearchParams(Object.entries(filters).filter(([, v]) => v) as [string, string][]).toString()
   const { data, error, loading, reload, setData } = useFetch<Dashboard>(`/api/det/kpis${qs ? `?${qs}` : ''}`)
   const [slow, setSlow] = useState(false)
@@ -60,12 +62,29 @@ export default function KpisTab() {
     return (
       <div aria-busy="true">
         <p style={srOnly} role="status">{t('loading_all')}</p>
-        {slow && <p role="status">{t('still_loading')}</p>}
-        <div className="grid">{[0, 1, 2, 3, 4].map((i) => <div className="card" key={i}><Skeleton rows={3} /></div>)}</div>
+        {slow && <p role="status" className="det-note">{t('still_loading')}</p>}
+        <div className="det-kpi-grid">{[0, 1, 2, 3, 4, 5].map((i) => <div className="card det-kpi-skeleton" key={i}><Skeleton rows={4} /></div>)}</div>
       </div>
     )
   }
+  return <KpisView data={data} loading={loading} filters={filters} setFilters={setFilters} qs={qs} retryOne={retryOne} retrying={retrying} reload={reload} />
+}
+
+function KpisView({ data, loading, filters, setFilters, qs, retryOne, retrying, reload }: { data: Dashboard; loading: boolean; filters: Filters; setFilters: (f: Filters) => void; qs: string; retryOne: (id: string) => void; retrying: string | null; reload: () => void }) {
+  const { t } = useTranslation('kpis')
+  const { lang, tx } = useLang()
   const n = data.suppression.min_group_size
+  const meta = (
+    <MetaLine
+      items={[
+        <Chip key="d" tone={data.demo_data ? 'draft' : 'info'} icon={data.demo_data ? '✎' : 'i'}>{data.demo_data ? t('demo_data') : t('pilot_data')}</Chip>,
+        t('n_label', { n }),
+        <span key="a">{t('data_as_of')}: {formatDateTime(data.data_as_of, lang)}</span>,
+        <bdi key="v" dir="ltr">{data.data_version}</bdi>,
+      ]}
+    />
+  )
+  const inHeader = useDetHeaderMeta(meta, [data.demo_data, n, data.data_as_of, data.data_version, lang])
   const live = data.kpis.filter((k) => k.group === 'live')
   const later = data.kpis.filter((k) => k.group === 'later')
   const revenue = live.filter((k) => k.kpi_id === 'K2' || k.kpi_id === 'K3')
@@ -74,14 +93,11 @@ export default function KpisTab() {
 
   return (
     <div>
-      <Message kind="info">{t('banner')}</Message>
-      <p>
-        <Chip tone={data.demo_data ? 'draft' : 'info'} icon={data.demo_data ? '✎' : 'i'}>{data.demo_data ? t('demo_data') : t('pilot_data')}</Chip>{' '}
-        <span className="hint">{t('n_label', { n })} · {t('data_as_of')}: {formatDateTime(data.data_as_of, lang)} · <bdi dir="ltr">{data.data_version}</bdi></span>
-      </p>
+      {!inHeader && <p>{meta}</p>}
+      <p className="det-note"><Icon name="info" size={16} />{t('banner')}</p>
       {loading && <p style={srOnly} role="status">{t('loading_all')}</p>}
 
-      <FilterBar data={data} value={filters} onChange={setFilters} />
+      <FilterBar data={data} value={filters} onChange={setFilters} end={data.can_export ? <ExportPanel filters={data.filters} /> : undefined} />
 
       {data.state === 'blocked' && (
         <Message kind="warning">
@@ -91,34 +107,36 @@ export default function KpisTab() {
       {data.state === 'empty' && <Message kind="info">{t('empty')}</Message>}
 
       <section aria-labelledby="kpi-live">
-        <h2 id="kpi-live">{t('live_now')}</h2>
-        <div className="grid">{others.map(tile)}</div>
-        <div className="grid" style={{ marginTop: 16 }}>{revenue.map(tile)}</div>
-        <p className="hint"><span aria-hidden="true">ⓘ </span>{t('revenue_note')}</p>
+        <SectionHead id="kpi-live" title={t('live_now')} first />
+        <div className="det-kpi-grid">{others.map(tile)}</div>
+        {revenue.length > 0 && <div className="det-kpi-grid det-kpi-grid-wide">{revenue.map(tile)}</div>}
+        <p className="det-note det-note-inline"><Icon name="info" size={16} />{t('revenue_note')}</p>
       </section>
 
-      <section aria-labelledby="kpi-later" style={{ marginTop: 24 }}>
-        <h2 id="kpi-later">{t('coming_later')}</h2>
-        <div className="grid">{later.map(tile)}</div>
+      <section aria-labelledby="kpi-later">
+        <SectionHead id="kpi-later" title={t('coming_later')} hint={t('coming_later_hint')} />
+        <div className="det-kpi-grid det-kpi-grid-later">{later.map(tile)}</div>
       </section>
 
-      {data.state !== 'blocked' && <BreakdownPanel data={data} qs={qs} />}
-      {data.can_export && <ExportPanel filters={data.filters} />}
-      <SettingsCard canManage={data.can_manage_n} onSaved={reload} />
-      <p className="hint">{tx(data.source_label)} · {data.catalogue_version}</p>
+      <div className="det-two" style={{ marginTop: 28 }}>
+        {data.state !== 'blocked' && <BreakdownPanel data={data} qs={qs} />}
+        <SettingsCard canManage={data.can_manage_n} onSaved={reload} />
+      </div>
+      <p className="det-note det-note-inline"><MetaLine items={[tx(data.source_label), <bdi key="c" dir="ltr">{data.catalogue_version}</bdi>]} /></p>
     </div>
   )
 }
 
-function FilterBar({ data, value, onChange }: { data: Dashboard; value: { period: string; cohort: string; payment_status: string }; onChange: (v: { period: string; cohort: string; payment_status: string }) => void }) {
+type Filters = { period: string; cohort: string; payment_status: string }
+
+function FilterBar({ data, value, onChange, end }: { data: Dashboard; value: Filters; onChange: (v: Filters) => void; end?: React.ReactNode }) {
   const { t } = useTranslation('kpis')
   const [draft, setDraft] = useState({ ...value, period: value.period || data.filters.period })
   return (
     <form
-      className="actions"
+      className="toolbar det-toolbar"
       role="search"
       aria-label={t('filters')}
-      style={{ flexWrap: 'wrap', alignItems: 'flex-end', gap: 12 }}
       onSubmit={(e) => {
         e.preventDefault()
         onChange(draft)
@@ -142,6 +160,7 @@ function FilterBar({ data, value, onChange }: { data: Dashboard; value: { period
         </select>
       </Field>
       <Button type="submit" variant="secondary">{t('filters')}</Button>
+      {end && <div className="toolbar-end">{end}</div>}
     </form>
   )
 }
@@ -174,8 +193,8 @@ function BreakdownPanel({ data, qs }: { data: Dashboard; qs: string }) {
   }
   return (
     <Panel title={t('breakdown')} id="kpi-breakdown">
-      <p className="hint">{t('fixed_periods')}</p>
-      <div className="actions" style={{ flexWrap: 'wrap', alignItems: 'flex-end', gap: 12 }}>
+      <p className="det-note">{t('fixed_periods')}</p>
+      <div className="det-form-row">
         <Field label={t('choose_kpi')} id="bd-kpi">
           <select id="bd-kpi" value={kpi} onChange={(e) => { setKpi(e.target.value); setDim(''); setTable(null) }}>
             {liveKpis.map((x) => <option key={x.kpi_id} value={x.kpi_id}>{x.kpi_id} · {tx(x.name)}</option>)}
@@ -216,8 +235,8 @@ function ExportPanel({ filters }: { filters: Dashboard['filters'] }) {
     }
   }
   return (
-    <div className="actions" style={{ marginTop: 16, flexWrap: 'wrap' }}>
-      <Button variant="secondary" onClick={run} disabled={state === 'busy'}>{state === 'busy' ? t('exporting') : t('export')}</Button>
+    <div className="det-export">
+      <Button type="button" variant="secondary" onClick={run} disabled={state === 'busy'}><Icon name="download" size={18} />{state === 'busy' ? t('exporting') : t('export')}</Button>
       {state === 'done' && <span role="status" className="hint">{t('export_done')}</span>}
       {state === 'error' && <span role="alert" className="hint">{t('export_failed')}</span>}
     </div>
@@ -252,34 +271,34 @@ function SettingsCard({ canManage, onSaved }: { canManage: boolean; onSaved: () 
   }
   return (
     <Panel title={t('settings_title')} id="kpi-settings">
-      <p>{t('n_label', { n: data.min_group_size })}</p>
+      <p className="det-big"><bdi dir="ltr">N = {data.min_group_size}</bdi></p>
+      <p className="det-note det-note-inline">{t('n_label', { n: data.min_group_size })}</p>
       <p className="hint">{t('settings_intro')} {t('settings_owner')}</p>
       {canManage ? (
-        <div>
+        <div className="det-subsection">
           <Field label={t('settings_value')} id="n-value">
             <input id="n-value" type="number" inputMode="numeric" min={data.min} max={data.max} step={1} value={value} onChange={(e) => setValue(e.target.value)} />
           </Field>
           <Field label={t('settings_reason')} id="n-reason">
             <input id="n-reason" type="text" maxLength={255} value={reason} onChange={(e) => setReason(e.target.value)} />
           </Field>
-          <label style={{ display: 'flex', gap: 8, alignItems: 'center', minHeight: 44 }}>
+          <label className="check">
             <input type="checkbox" checked={consulted} onChange={(e) => setConsulted(e.target.checked)} /> {t('settings_consulted')}
           </label>
           <Button onClick={save}>{t('settings_save')}</Button>
         </div>
       ) : (
-        <p className="hint"><span aria-hidden="true">ⓘ </span>{t('settings_readonly')}</p>
+        <p className="det-note det-note-inline"><Icon name="lock" size={16} />{t('settings_readonly')}</p>
       )}
       {msg && <Message kind={msg.kind}>{msg.text}</Message>}
       {data.history.length > 0 && (
-        <details>
-          <summary style={{ minHeight: 44, display: 'flex', alignItems: 'center', cursor: 'pointer' }}>{t('settings_history')}</summary>
+        <Disclosure summary={t('settings_history')}>
           <ul className="timeline">
             {data.history.map((h) => (
-              <li key={h.version}><bdi dir="ltr">v{h.version}</bdi> · N = <bdi dir="ltr">{h.value}</bdi> · {formatDate(h.effective_from, lang)}</li>
+              <li key={h.version}><bdi dir="ltr">v{h.version}</bdi> · <bdi dir="ltr">N = {h.value}</bdi> · <span className="nowrap">{formatDate(h.effective_from, lang)}</span></li>
             ))}
           </ul>
-        </details>
+        </Disclosure>
       )}
     </Panel>
   )

@@ -261,7 +261,7 @@ legend { font-weight: 600; padding: 0 6px; }
 .stepper { font-size: var(--fs-sm); font-weight: 600; color: var(--accent); margin-bottom: 8px; }
 
 /* ---------- Tables ---------- */
-.table-wrap { overflow: auto; border-radius: var(--radius); }
+.table-wrap { position: relative; overflow: auto; border-radius: var(--radius); }
 table { width: 100%; border-collapse: collapse; font-size: .95rem; }
 th, td { text-align: start; padding: 12px; border-bottom: 1px solid var(--border); vertical-align: top; }
 th { font-size: var(--fs-xs); font-weight: 600; color: var(--muted); text-transform: uppercase; letter-spacing: .04em; background: var(--surface-2); white-space: nowrap; }

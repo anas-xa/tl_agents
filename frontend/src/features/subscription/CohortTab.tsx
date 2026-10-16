@@ -1,6 +1,8 @@
 import { useState } from 'react'
 import { useTranslation } from 'react-i18next'
-import { Button, Chip, Empty, Field, Ident, Message, Panel, Skeleton, Table } from '../../components/ui'
+import { Icon } from '../../components/Icon'
+import { Button, Chip, Disclosure, Empty, Field, Ident, Message, Panel, Skeleton, StatCard, Table } from '../../components/ui'
+import '../det/det.css'
 import { ApiError, post } from '../../lib/api'
 import { formatAED, formatDateTime, formatNumber } from '../../lib/format'
 import { newRequestId, useFetch } from './lib'
@@ -47,21 +49,22 @@ export default function CohortTab() {
         {agg.data && (
           <>
             {agg.data.money_confirmed_fils.billed_net === 0 && <Message kind="info">{t('det.no_billed')}</Message>}
-            <div className="grid">
-              <div className="card"><div className="stat-label">{t('det.billed_net')} <Chip tone="draft">{t('example')}</Chip></div><div className="stat"><bdi dir="ltr">{formatAED(agg.data.money_confirmed_fils.billed_net, lang)}</bdi></div></div>
-              <div className="card"><div className="stat-label">{t('det.collected')}</div><div className="stat"><bdi dir="ltr">{formatAED(agg.data.money_confirmed_fils.collected, lang)}</bdi></div></div>
-              <div className="card"><div className="stat-label">{t('det.refunded')}</div><div className="stat"><bdi dir="ltr">{formatAED(agg.data.money_confirmed_fils.refunded, lang)}</bdi></div></div>
-              <div className="card"><div className="stat-label">{t('det.pending_confirmation')}</div><div className="stat">{formatNumber(agg.data.counts.pending_confirmation, lang)}</div></div>
-              <div className="card"><div className="stat-label">{t('det.mismatch')}</div><div className="stat">{formatNumber(agg.data.counts.mismatch, lang)}</div></div>
-              <div className="card" style={{ borderStyle: 'dashed' }}><div className="stat-label">{t('det.provisional_tile')}</div><div className="stat"><bdi dir="ltr">{formatAED(agg.data.provisional_fils.platform_derived_collected, lang)}</bdi></div></div>
+            <div className="stat-grid det-cohort-stats">
+              <StatCard icon="card" label={t('det.billed_net')} value={<bdi dir="ltr">{formatAED(agg.data.money_confirmed_fils.billed_net, lang)}</bdi>} status={<Chip tone="draft">{t('example')}</Chip>} />
+              <StatCard icon="check" label={t('det.collected')} value={<bdi dir="ltr">{formatAED(agg.data.money_confirmed_fils.collected, lang)}</bdi>} />
+              <StatCard icon="history" label={t('det.refunded')} value={<bdi dir="ltr">{formatAED(agg.data.money_confirmed_fils.refunded, lang)}</bdi>} />
+              <StatCard icon="clock" tone={agg.data.counts.pending_confirmation ? 'attention' : undefined} label={t('det.pending_confirmation')} value={<bdi dir="ltr">{formatNumber(agg.data.counts.pending_confirmation, lang)}</bdi>} />
+              <StatCard icon="alert" tone={agg.data.counts.mismatch ? 'urgent' : undefined} label={t('det.mismatch')} value={<bdi dir="ltr">{formatNumber(agg.data.counts.mismatch, lang)}</bdi>} />
+              <StatCard className="det-stat-dashed" icon="info" tone="draft" label={t('det.provisional_tile')} value={<bdi dir="ltr">{formatAED(agg.data.provisional_fils.platform_derived_collected, lang)}</bdi>} />
             </div>
-            <p className="hint">{t('det.suppression', { n: config.suppression_n })} · {t('det.members')}: {cell(agg.data.total_subscriptions)}</p>
-            <p className="hint">{t('det.k4', { rule: agg.data.k4.rule_version, days: agg.data.k4.observation_window_days })}: {t('det.k4_opted_out')} {cell(agg.data.k4.flag_opted_out.pending)}</p>
-            <p>
+            <dl className="det-facts">
+              <div><dt>{t('det.members')}</dt><dd>{cell(agg.data.total_subscriptions)}</dd></div>
+              <div><dt>{t('det.k4', { rule: agg.data.k4.rule_version, days: agg.data.k4.observation_window_days })}</dt><dd>{t('det.k4_opted_out')} {cell(agg.data.k4.flag_opted_out.pending)}</dd></div>
               {[['billing_live', 'switch_billing_live'], ['default_on_billing', 'switch_default_on'], ['consent_required_before_billing', 'switch_consent']].map(([k, label]) => (
-                <span key={k} style={{ marginInlineEnd: 12 }}>{t(`det.${label}`)}: <Chip tone={agg.data!.switches[k] ? 'ok' : 'neutral'} icon={agg.data!.switches[k] ? '●' : '○'}>{agg.data!.switches[k] ? t('det.on') : t('det.off')}</Chip></span>
+                <div key={k}><dt>{t(`det.${label}`)}</dt><dd><Chip tone={agg.data!.switches[k] ? 'ok' : 'neutral'} icon={agg.data!.switches[k] ? '●' : '○'}>{agg.data!.switches[k] ? t('det.on') : t('det.off')}</Chip></dd></div>
               ))}
-            </p>
+            </dl>
+            <p className="det-note"><Icon name="lock" size={16} />{t('det.suppression', { n: config.suppression_n })}</p>
           </>
         )}
       </Panel>
@@ -69,23 +72,25 @@ export default function CohortTab() {
       {openId ? (
         <CohortDetail cohortId={openId} config={config} waveLabel={waveLabel} onBack={() => { setOpenId(null); list.reload() }} />
       ) : (
-        <Panel title={t('det.title')} id="det-cohorts">
-          {list.data.cohorts.length === 0 ? <Empty title={t('det.no_cohorts')} /> : (
+        <Panel title={t('det.title')} id="det-cohorts" className="det-panel-flush">
+          {list.data.cohorts.length === 0 ? <Empty icon="users" title={t('det.no_cohorts')} /> : (
+            <div className="table-compact det-table">
             <Table headers={[t('det.name'), t('det.wave'), t('det.mode'), t('det.status'), t('det.members'), t('det.pending'), '']}>
               {list.data.cohorts.map((c) => (
                 <tr key={c.cohort_id}>
-                  <td>{c.name} <Ident>{c.code}</Ident> {c.is_demo && <Chip tone="draft">{t('demo')}</Chip>}</td>
-                  <td>{waveLabel(c.wave)}</td>
-                  <td>{c.enrolment_mode === 'opt_in' ? t('det.mode_opt_in') : t('det.mode_default_on')}</td>
+                  <td><Button variant="link" className="det-ref-btn" onClick={() => setOpenId(c.cohort_id)}>{c.name}</Button><span className="det-cell-sub"><Ident>{c.code}</Ident> {c.is_demo && <Chip tone="draft">{t('demo')}</Chip>}</span></td>
+                  <td className="nowrap">{waveLabel(c.wave)}</td>
+                  <td className="nowrap">{c.enrolment_mode === 'opt_in' ? t('det.mode_opt_in') : t('det.mode_default_on')}</td>
                   <td><Chip tone={c.status === 'active' ? 'ok' : 'neutral'}>{t(`det.cohort_status_${c.status}`)}</Chip></td>
-                  <td>{formatNumber(c.member_count, lang)} / {c.size_limit === null ? '–' : formatNumber(c.size_limit, lang)}</td>
-                  <td>{formatNumber(c.pending_changes, lang)}</td>
-                  <td><Button variant="link" onClick={() => setOpenId(c.cohort_id)}>{t('det.open')}</Button></td>
+                  <td className="num"><bdi dir="ltr">{formatNumber(c.member_count, lang)} / {c.size_limit === null ? '–' : formatNumber(c.size_limit, lang)}</bdi></td>
+                  <td className="num">{c.pending_changes > 0 ? <Chip tone="attention" icon="◔">{formatNumber(c.pending_changes, lang)}</Chip> : formatNumber(c.pending_changes, lang)}</td>
+                  <td className="nowrap"><Button variant="secondary" className="det-rowbtn" onClick={() => setOpenId(c.cohort_id)}>{t('det.open')}</Button></td>
                 </tr>
               ))}
             </Table>
+            </div>
           )}
-          {config.can_manage && <NewCohort config={config} waveLabel={waveLabel} onCreated={list.reload} />}
+          {config.can_manage && <div style={{ padding: '0 20px 12px' }}><NewCohort config={config} waveLabel={waveLabel} onCreated={list.reload} /></div>}
         </Panel>
       )}
     </div>
@@ -128,8 +133,7 @@ function NewCohort({ config, waveLabel, onCreated }: { config: Config; waveLabel
     }
   }
   return (
-    <details>
-      <summary>{t('det.new_cohort')}</summary>
+    <Disclosure summary={t('det.new_cohort')}>
       <Field label={t('det.name')} id="nc-name" required><input id="nc-name" value={name} onChange={(e) => setName(e.target.value)} /></Field>
       <Field label={t('det.code')} id="nc-code" required><input id="nc-code" value={code} onChange={(e) => setCode(e.target.value.toUpperCase())} /></Field>
       <Field label={t('det.wave')} id="nc-wave">
@@ -146,7 +150,7 @@ function NewCohort({ config, waveLabel, onCreated }: { config: Config; waveLabel
       <Field label={t('det.reason')} id="nc-reason" required><input id="nc-reason" value={reason} onChange={(e) => setReason(e.target.value)} /></Field>
       {err && <Message kind="error">{err}</Message>}
       <Button disabled={busy || !name || !code || !reason} onClick={create}>{t('det.create')}</Button>
-    </details>
+    </Disclosure>
   )
 }
 
@@ -185,6 +189,7 @@ function CohortDetail({ cohortId, config, waveLabel, onBack }: { cohortId: strin
       {err && <Message kind="error">{err}</Message>}
       {ok && <Message kind="success">{ok}</Message>}
 
+      <div className="table-compact det-table">
       <Table headers={[t('det.licence_number'), t('det.member_status'), t('det.subscription_status'), t('det.billing_status'), t('det.collection_status'), t('det.basis'), t('det.actions')]}>
         {data.members.map((m) => (
           <tr key={m.membership_id}>
@@ -205,7 +210,8 @@ function CohortDetail({ cohortId, config, waveLabel, onBack }: { cohortId: strin
           </tr>
         ))}
       </Table>
-      <p className="hint">{t('det.removal_note')}</p>
+      </div>
+      <p className="det-note det-note-inline">{t('det.removal_note')}</p>
 
       {config.can_manage && c.status !== 'closed' && (
         <section className="card">
@@ -234,8 +240,9 @@ function CohortDetail({ cohortId, config, waveLabel, onBack }: { cohortId: strin
         </section>
       )}
 
-      <h3>{t('det.pending')}</h3>
-      {!config.can_approve && <p className="hint">{t('det.approve_hint')}</p>}
+      <h3 style={{ marginTop: 24 }}>{t('det.pending')}</h3>
+      {!config.can_approve && <p className="det-note">{t('det.approve_hint')}</p>}
+      <div className="table-compact det-table">
       <Table headers={[t('det.licence_number'), t('det.actions'), t('det.status'), t('det.effective'), '']}>
         {data.pending_changes.map((ch) => (
           <tr key={ch.id}>
@@ -254,6 +261,7 @@ function CohortDetail({ cohortId, config, waveLabel, onBack }: { cohortId: strin
           </tr>
         ))}
       </Table>
+      </div>
     </Panel>
   )
 }
