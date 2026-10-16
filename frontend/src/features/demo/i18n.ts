@@ -34,6 +34,14 @@ const en = {
   bar_finish: 'Closing words',
   epilogue_label: 'Closing',
   prologue_label: 'Opening',
+  chapters_nav: 'Chapters',
+  script_more: 'What to click ({{steps}}) and what to point out ({{points}})',
+  n_chapters: '{{n}} chapters',
+  n_people: '{{n}} people',
+  presenter: 'Presenter mode',
+  current: 'Current chapter',
+  how_title: 'How it works',
+  how_body: 'Press Start chapter: you are signed in as that person and the right screen opens. The story bar at the top of the app shows the script and takes you to the next chapter.',
 }
 
 const ar = {
@@ -69,6 +77,14 @@ const ar = {
   bar_finish: 'الكلمة الختامية',
   epilogue_label: 'الختام',
   prologue_label: 'البداية',
+  chapters_nav: 'الفصول',
+  script_more: 'ماذا تضغط ({{steps}}) وما الذي تبرزه ({{points}})',
+  n_chapters: 'عدد الفصول: {{n}}',
+  n_people: 'عدد الشخصيات: {{n}}',
+  presenter: 'وضع العرض',
+  current: 'الفصل الحالي',
+  how_title: 'طريقة العمل',
+  how_body: 'اضغط "ابدأ الفصل": يُسجَّل دخولك بصفة تلك الشخصية وتُفتح الشاشة المناسبة. يعرض شريط القصة أعلى التطبيق النص وينقلك إلى الفصل التالي.',
 }
 
 i18n.addResourceBundle('en', 'demo', en, true, true)

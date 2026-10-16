@@ -2,8 +2,10 @@ import { useEffect, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import { useNavigate, useSearchParams } from 'react-router-dom'
 import { useAuth } from '../app/auth'
-import { Button, Message } from '../components/ui'
+import { Button } from '../components/ui'
 import { get, patch } from '../lib/api'
+import { Icon } from '../components/Icon'
+import './entry.css'
 
 /** Landing after the UAE PASS callback: checks access, shows the one-time privacy notice, then routes home. */
 export default function AuthComplete() {
@@ -46,13 +48,21 @@ export default function AuthComplete() {
     }
     nav(safe, { replace: true })
   }
-  if (loading && !me) return <div className="signin-page"><div className="signin-card" role="status">{t('signin.checking')}</div></div>
+  if (loading && !me)
+    return (
+      <div className="signin-page entry-page">
+        <div className="signin-card entry-card"><div className="entry-checking" role="status"><span className="spinner" aria-hidden="true" />{t('signin.checking')}</div></div>
+      </div>
+    )
   if (showPrivacy && me)
     return (
-      <div className="signin-page">
-        <div className="signin-card">
-          <h1>{t('signin.privacy_title')}</h1>
-          <Message kind="info">{t('signin.privacy_body')}</Message>
+      <div className="signin-page entry-page">
+        <div className="signin-card entry-card entry-privacy">
+          <span className="entry-icon" aria-hidden="true"><Icon name="shield" size={26} /></span>
+          <p className="entry-eyebrow">{t('entry.privacy_eyebrow')}</p>
+          <h1 id="privacy-title">{t('signin.privacy_title')}</h1>
+          <p className="entry-prose">{t('signin.privacy_body')}</p>
+          <p className="entry-note"><Icon name="info" size={16} /><span>{t('entry.privacy_once')}</span></p>
           <Button autoFocus onClick={async () => { await patch('/api/auth/me/preferences', { privacy_notice_version: '2025-01' }).catch(() => undefined); finish(me) }}>{t('signin.privacy_ok')}</Button>
         </div>
       </div>
