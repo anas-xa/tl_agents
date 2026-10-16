@@ -8,7 +8,7 @@ from fastapi import FastAPI, Request
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
 
-from app.core.db import SessionLocal, init_db
+from app.core.db import SessionLocal, ensure_current_schema
 from app.core.errors import PlatformError
 from app.core.settings import get_settings
 
@@ -33,7 +33,8 @@ def _register_routers(app: FastAPI) -> None:
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     if get_settings().environment != "test":  # tests start from a pre-seeded template database
-        init_db()
+        # A demo database from an older version is rebuilt (it only holds demo data); any other is never touched.
+        ensure_current_schema(rebuild_if_outdated=get_settings().seed_demo_on_start)
         from app.seed import seed_reference_data
 
         with SessionLocal() as db:
