@@ -34,33 +34,38 @@ export default function DashboardPanel() {
   }, [companyId, vatPeriod, ctPeriod])
 
   const row = (label: string, v: CalcView | null) => {
-    if (!v) return <Skeleton rows={1} />
+    if (!v) return <li aria-busy="true"><span className="dash-status-name">{label}</span><span className="dash-status-sub"><Skeleton rows={1} /></span></li>
     const c = v.calculation
-    if (!c) return <li>{label}: <Chip tone="neutral">{t('panel_no_calc')}</Chip></li>
+    if (!c) return <li><span className="dash-status-name">{label}</span><span className="dash-status-end"><Chip tone="neutral">{t('panel_no_calc')}</Chip></span></li>
     const days = c.due_date ? Math.round((new Date(c.due_date + 'T00:00:00').getTime() - Date.now()) / 86400000) : null
     const key = c.tax_type === 'vat' ? 'net_vat_fils' : 'tax_fils'
     const figure = c.outputs && c.state === 'current' && typeof c.outputs[key] === 'number' ? (c.outputs[key] as number) : c.net_figure_fils ?? null
     return (
       <li>
-        {label}: <Chip tone={c.state === 'current' ? 'ok' : c.state === 'blocked' ? 'info' : 'attention'}>{t(`state_${c.state}`)}</Chip>
-        {figure !== null && <> · <bdi dir="ltr">{formatAED(figure, lang)}</bdi></>}
-        <div className="hint">
+        <span className="dash-status-name">{label}</span>
+        <span className="dash-status-end">
+          {figure !== null && <bdi dir="ltr" className="num">{formatAED(figure, lang)}</bdi>}
+          <Chip tone={c.state === 'current' ? 'ok' : c.state === 'blocked' ? 'info' : 'attention'}>{t(`state_${c.state}`)}</Chip>
+        </span>
+        <span className="dash-status-sub">
           {filed.has(`${c.tax_type}:${c.period_id}`) ? <Chip tone="ok">{t('st_filed_user_confirmed')}</Chip> : days !== null ? daysLeftLabel(days, lang) : t('days_left_placeholder')}
-        </div>
+        </span>
       </li>
     )
   }
 
   return (
-    <Panel title={t('panel_title')} actions={<Link to="/tax">{t('panel_open')}</Link>}>
+    <Panel title={t('panel_title')} id="dash-tax" actions={<Link to="/tax">{t('panel_open')}</Link>}>
       {failed ? <p className="hint">{t('generic_error')}</p> : (
-        <ul style={{ listStyle: 'none', padding: 0 }}>
+        <ul className="dash-status-list">
           {row(t('panel_vat', { period: vatPeriod }), vat)}
           {row(t('panel_ct', { period: ctPeriod }), ct)}
         </ul>
       )}
-      {missing !== null && missing > 0 && <p><Chip tone="attention">{t('panel_missing', { n: missing })}</Chip></p>}
-      <p className="hint">{t('draft_label')}</p>
+      <p className="dash-source dash-source-chips">
+        {missing !== null && missing > 0 && <Chip tone="attention">{t('panel_missing', { n: missing })}</Chip>}
+        <span>{t('draft_label')}</span>
+      </p>
     </Panel>
   )
 }

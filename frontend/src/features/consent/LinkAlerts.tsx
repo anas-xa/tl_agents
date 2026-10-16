@@ -26,10 +26,12 @@ export default function LinkAlerts() {
   if (!attention.length && !expired && !paused && !due) return null
   return (
     <Message kind="warning" id="link-alerts">
-      {attention.length > 0 && <div>{t('alert_failed', { n: attention.length, names: attention.map((r) => r.source_name).join(', ') })}</div>}
-      {expired && <div>{t('alert_expired')}</div>}
-      {paused && <div>{t('alert_paused')}</div>}
-      {due && <div>{t('alert_upload_due', { n: data.manual_uploads_line.manual_data_age_days ?? 0 })}</div>}
+      <div className="link-alerts-text">
+        {attention.length > 0 && <div>{t('alert_failed', { n: attention.length, names: attention.map((r) => r.source_name).join(', ') })}</div>}
+        {expired && <div>{t('alert_expired')}</div>}
+        {paused && <div>{t('alert_paused')}</div>}
+        {due && <div>{t('alert_upload_due', { n: data.manual_uploads_line.manual_data_age_days ?? 0 })}</div>}
+      </div>
       <div className="actions">
         {can('consent.view', companyId) && <Button variant="secondary" onClick={() => nav('/consent')}>{t('open_centre')}</Button>}
         {due && can('uploads.manage', companyId) && <Button variant="secondary" onClick={() => nav('/settings?tab=data-links')}>{t('btn.upload_files')}</Button>}

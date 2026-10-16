@@ -16,17 +16,20 @@ export default function DashboardPanel() {
   useEffect(() => {
     if (companyId) get<AuditOverview>(`/api/companies/${companyId}/audit`).then(setD).catch(() => setErr(true))
   }, [companyId])
-  if (err) return <Panel title={t('dash.title')}><p>{t('error')}</p></Panel>
-  if (!d) return <Panel title={t('dash.title')}><Skeleton rows={2} /></Panel>
+  if (err) return <Panel title={t('dash.title')} id="dash-audit"><p>{t('error')}</p></Panel>
+  if (!d) return <Panel title={t('dash.title')} id="dash-audit"><Skeleton rows={3} /></Panel>
   const text = d.flag.text[lang] || {}
   const open = (d.exceptions ?? []).filter((e) => e.status === 'New').length
   return (
-    <Panel title={t('dash.title')} id="dash-audit">
-      <p><Chip tone="info" icon="ⓘ">{text.badge_indicative}</Chip></p>
-      <p><strong>{t(`indicator.states.${d.flag.state}`)}</strong></p>
-      {d.exceptions && <p>{t('dash.exceptions', { n: open })}</p>}
-      {d.working_file && <p className="muted">{d.working_file.status_label[lang]}</p>}
-      <Link to="/audit">{t('dash.open')}</Link>
+    <Panel title={t('dash.title')} id="dash-audit" actions={<Link to="/audit">{t('dash.open')}</Link>}>
+      <ul className="dash-status-list">
+        <li>
+          <strong className="dash-status-name">{t(`indicator.states.${d.flag.state}`)}</strong>
+          <span className="dash-status-end"><Chip tone="info" icon="ⓘ">{text.badge_indicative}</Chip></span>
+        </li>
+        {d.exceptions && <li><span className="dash-status-name">{t('dash.exceptions', { n: open })}</span></li>}
+      </ul>
+      {d.working_file && <p className="dash-source">{d.working_file.status_label[lang]}</p>}
     </Panel>
   )
 }
